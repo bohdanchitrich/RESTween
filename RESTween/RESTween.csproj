@@ -1,27 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
 	<PropertyGroup>
-		<PackageId>restweeen</PackageId>
-		<Version>1.0.0</Version>
-		<Authors>Bohdan K</Authors>
-		<Company>SmartCodeCraft</Company>
+		<TargetFrameworks>net8.0;net7.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+	<PropertyGroup>
+		<PackageId>RESTween</PackageId>
+		<Version>1.0.5</Version>
+		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
-		<Description>This package give toolse for fast send rest request</Description>
-		<PackageTags>tag1;tag2</PackageTags>
+		<Description>
+			RESTween is a lightweight and dynamic library for creating REST API clients using proxy interfaces, powered by Castle DynamicProxy. It simplifies the process of making HTTP requests by allowing developers to define API contracts via interfaces, which are then dynamically implemented at runtime. RESTween supports GET and POST requests and integrates seamlessly with HttpClient. Ideal for building scalable and maintainable applications with minimal boilerplate code.
+		</Description>
+		<PackageTags>REST;API;HTTP;Proxy;DynamicProxy;Castle;HttpClient</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<RepositoryUrl>https://your-repo-url</RepositoryUrl>
 		<OutputPath>bin\Release\</OutputPath>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	</PropertyGroup>
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
 
 	<ItemGroup>
-    <PackageReference Include="Castle.Core.AsyncInterceptor" Version="2.1.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
-  </ItemGroup>
+		<PackageReference Include="Castle.Core.AsyncInterceptor" Version="2.1.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+	</ItemGroup>
+	<PropertyGroup>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
 
 </Project>
