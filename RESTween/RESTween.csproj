@@ -6,11 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 	<PropertyGroup>
-		<PackageId>RESTween</PackageId>
+		<PackageId>restweeen</PackageId>
 		<Version>1.0.0</Version>
 		<Authors>Bohdan K</Authors>
-		<Company>RESTweenCompany</Company>
-		<Product>YourProduct</Product>
+		<Company>SmartCodeCraft</Company>
+		<Product>Library</Product>
 		<Description>This package give toolse for fast send rest request</Description>
 		<PackageTags>tag1;tag2</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
