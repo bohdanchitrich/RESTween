@@ -1,22 +1,17 @@
-﻿using Moq.Protected;
-using Moq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Xunit;
-using System.Net;
-using RESTween.Handlers;
-using RESTween;
-using System.Reflection;
+﻿
 using RESTween.Attributes;
-
+using NUnit.Framework;
+using System.Reflection;
+using Moq;
+using RESTween;
+using RESTween.Handlers;
+using NUnit.Framework.Legacy;
 namespace Tests
 {
+    [TestFixture]
     public class ApiClientTests
     {
-        [Fact]
+        [Test]
         public void HandleGet_ShouldFormCorrectQueryString()
         {
             // Arrange
@@ -25,17 +20,17 @@ namespace Tests
             var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
 
             var url = "https://api.example.com/resource";
-            var parameters = new object[] { 123, "testValue" };
+            var arguments = new object[] { 123, "testValue" };
 
             // Створення MethodInfo для симуляції Get методу
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedGetMethod));
-
+            var parameters = methodInfo.GetParameters();
             // Act
-            HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters);
+            HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
 
             // Assert
-            Assert.Equal(HttpMethod.Get, request.Method);
-            Assert.Equal($"{url}?param0=123&param1=testValue", request.RequestUri.ToString());
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+            ClassicAssert.AreEqual($"{url}?param0=123&param1=testValue", request.RequestUri.ToString());
         }
 
         [Get("https://api.example.com/resource")]
