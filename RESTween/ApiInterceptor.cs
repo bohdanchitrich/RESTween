@@ -29,12 +29,23 @@ namespace RESTween
 
         private async Task InterceptAsync(IInvocation invocation)
         {
-            await _apiClient.CallAsync(invocation.Method, invocation.Arguments);
+            await InterceptVoidAsync(invocation);
+        }
+
+        private async Task InterceptVoidAsync(IInvocation invocation)
+        {
+            var methodInfo = invocation.Method;
+            var parameters = methodInfo.GetParameters();
+            var arguments = invocation.Arguments;
+            await _apiClient.CallAsync(invocation.Method, parameters, arguments);
         }
 
         private async Task<TResult> InterceptAsync<TResult>(IInvocation invocation)
         {
-            return await _apiClient.CallAsync<TResult>(invocation.Method, invocation.Arguments);
+            var methodInfo = invocation.Method;
+            var parameters = methodInfo.GetParameters();
+            var arguments = invocation.Arguments;
+            return await _apiClient.CallAsync<TResult>(invocation.Method, parameters, arguments);
         }
     }
 }

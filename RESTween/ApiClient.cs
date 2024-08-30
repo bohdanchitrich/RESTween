@@ -12,6 +12,168 @@ using System.Threading.Tasks;
 
 namespace RESTween
 {
+    //public class ApiClient
+    //{
+    //    private readonly IRequestHandler _requestHandler;
+    //    private readonly HttpClient _httpClient;
+
+    //    public ApiClient(IRequestHandler requestHandler, HttpClient httpClient)
+    //    {
+    //        _requestHandler = requestHandler ?? throw new ArgumentNullException(nameof(requestHandler));
+    //        _httpClient = httpClient;
+    //    }
+
+    //    public async Task<T> CallAsync<T>(MethodInfo method, ParameterInfo[] parameterInfos ,object[] parameters)
+    //    {
+    //        HttpRequestMessage request = CreateRequest(method, parameters);
+    //        return await _requestHandler.HandleRequestAsync<T>(request, _httpClient);
+    //    }
+
+    //    public async Task CallAsync(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
+    //    {
+    //        HttpRequestMessage request = CreateRequest(method, parameters);
+    //        await _requestHandler.HandleRequestAsync(request, _httpClient);
+    //    }
+
+
+
+
+
+    //    //public async Task<T> CallAsync<T>(MethodInfo method, object[] parameters)
+    //    //{
+    //    //    HttpRequestMessage request = CreateRequest(method, parameters);
+    //    //    return await _requestHandler.HandleRequestAsync<T>(request, _httpClient);
+    //    //}
+
+    //    //public async Task CallAsync(MethodInfo method, object[] parameters)
+    //    //{
+    //    //    HttpRequestMessage request = CreateRequest(method, parameters);
+    //    //    await _requestHandler.HandleRequestAsync(request, _httpClient);
+    //    //}
+
+    //    public HttpRequestMessage CreateRequest(MethodInfo method, object[] parameters)
+    //    {
+    //        HttpRequestMessage? request = null;
+
+    //        if (method.GetCustomAttribute<GetAttribute>() is GetAttribute getAttr)
+    //        {
+    //            request = HandleGet(getAttr.Url, parameters);
+    //        }
+    //        else if (method.GetCustomAttribute<PostAttribute>() is PostAttribute postAttr)
+    //        {
+    //            request = HandlePost(postAttr.Url, parameters);
+    //        }
+    //        else if (method.GetCustomAttribute<PutAttribute>() is PutAttribute putAttr)
+    //        {
+    //            request = HandlePut(putAttr.Url, parameters);
+    //        }
+    //        else if (method.GetCustomAttribute<DeleteAttribute>() is DeleteAttribute deleteAttr)
+    //        {
+    //            request = HandleDelete(deleteAttr.Url, parameters);
+    //        }
+    //        else
+    //        {
+    //            throw new NotImplementedException("Only GET, POST, PUT, and DELETE methods are supported.");
+    //        }
+
+    //        return request;
+    //    }
+
+    //    private HttpRequestMessage HandleGet(string url, object[] parameters)
+    //    {
+
+    //        if (parameters.Length > 0)
+    //        {
+    //            var query = string.Join("&", parameters.Select((param, index) => $"param{index}={param}"));
+    //            url += "?" + query;
+    //        }
+
+
+
+    //        return new HttpRequestMessage(HttpMethod.Get, url);
+    //    }
+
+
+    //    private HttpRequestMessage HandlePost(string url, object[] parameters)
+    //    {
+    //        object bodyContent = null;
+    //        var queryParams = new Dictionary<string, string>();
+
+    //        foreach (var parameter in parameters)
+    //        {
+    //            var paramType = parameter.GetType();
+    //            var paramAttr = paramType.GetCustomAttribute<BodyAttribute>();
+    //            var queryAttr = paramType.GetCustomAttribute<QueryAttribute>();
+
+    //            if (paramAttr != null)
+    //            {
+    //                if (bodyContent != null)
+    //                {
+    //                    throw new ArgumentException("Multiple parameters cannot be used as body content. Please remove additional parameters or mark them as [Query].");
+    //                }
+    //                bodyContent = parameter;
+    //            }
+    //            else if (queryAttr != null)
+    //            {
+    //                queryParams[queryAttr.Name] = parameter.ToString();
+    //            }
+    //            else if (parameters.Length == 1)
+    //            {
+    //                bodyContent = parameter;
+    //            }
+    //            else
+    //            {
+    //                throw new ArgumentException("Multiple parameters without attributes detected. Only one parameter can be used as body content, or others must be marked with [Query].");
+    //            }
+    //        }
+
+    //        var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
+    //        var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
+
+    //        var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, requestUrl)
+    //        {
+    //            Content = bodyContent != null ? new StringContent(JsonSerializer.Serialize(bodyContent), Encoding.UTF8, "application/json") : null
+    //        };
+
+    //        return httpRequestMessage;
+    //    }
+
+    //    private HttpRequestMessage HandlePut(string url, object[] parameters)
+    //    {
+    //        var result = HandlePost(url, parameters);
+    //        result.Method = HttpMethod.Put;
+    //        return result;
+    //    }
+
+    //    private HttpRequestMessage HandleDelete(string url, object[] parameters)
+    //    {
+    //        var queryParams = new Dictionary<string, string>();
+
+    //        foreach (var parameter in parameters)
+    //        {
+    //            var paramType = parameter.GetType();
+    //            var parameterInfo = paramType.GetProperties();
+    //            foreach (var prop in parameterInfo)
+    //            {
+    //                var queryAttr = prop.GetCustomAttribute<QueryAttribute>();
+    //                var value = prop.GetValue(parameter)?.ToString();
+    //                if (queryAttr != null)
+    //                {
+    //                    queryParams[queryAttr.Name] = value;
+    //                }
+    //                else
+    //                {
+    //                    queryParams[prop.Name] = value;
+    //                }
+    //            }
+    //        }
+
+    //        var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
+    //        var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
+
+    //        return new HttpRequestMessage(HttpMethod.Delete, requestUrl);
+    //    }
+    //}
     public class ApiClient
     {
         private readonly IRequestHandler _requestHandler;
@@ -23,37 +185,37 @@ namespace RESTween
             _httpClient = httpClient;
         }
 
-        public async Task<T> CallAsync<T>(MethodInfo method, object[] parameters)
+        public async Task<T> CallAsync<T>(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            HttpRequestMessage request = CreateRequest(method, parameters);
+            HttpRequestMessage request = CreateRequest(method, parameterInfos, parameters);
             return await _requestHandler.HandleRequestAsync<T>(request, _httpClient);
         }
 
-        public async Task CallAsync(MethodInfo method, object[] parameters)
+        public async Task CallAsync(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            HttpRequestMessage request = CreateRequest(method, parameters);
+            HttpRequestMessage request = CreateRequest(method, parameterInfos, parameters);
             await _requestHandler.HandleRequestAsync(request, _httpClient);
         }
 
-        private HttpRequestMessage CreateRequest(MethodInfo method, object[] parameters)
+        public HttpRequestMessage CreateRequest(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
             HttpRequestMessage? request = null;
 
             if (method.GetCustomAttribute<GetAttribute>() is GetAttribute getAttr)
             {
-                request = HandleGet(getAttr.Url, parameters);
+                request = HandleGet(getAttr.Url, parameterInfos, parameters);
             }
             else if (method.GetCustomAttribute<PostAttribute>() is PostAttribute postAttr)
             {
-                request = HandlePost(postAttr.Url, parameters);
+                request = HandlePost(postAttr.Url, parameterInfos, parameters);
             }
             else if (method.GetCustomAttribute<PutAttribute>() is PutAttribute putAttr)
             {
-                request = HandlePut(putAttr.Url, parameters);
+                request = HandlePut(putAttr.Url, parameterInfos, parameters);
             }
             else if (method.GetCustomAttribute<DeleteAttribute>() is DeleteAttribute deleteAttr)
             {
-                request = HandleDelete(deleteAttr.Url, parameters);
+                request = HandleDelete(deleteAttr.Url, parameterInfos, parameters);
             }
             else
             {
@@ -62,49 +224,45 @@ namespace RESTween
 
             return request;
         }
-
-        private HttpRequestMessage HandleGet(string url, object[] parameters)
+        private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            var queryParams = new Dictionary<string, string>();
-
-            foreach (var parameter in parameters)
+            if (parameters.Length > 0)
             {
-                var paramType = parameter.GetType();
-                var parameterInfo = paramType.GetProperties();
-                foreach (var prop in parameterInfo)
+                var query = string.Join("&", parameters.Select((param, index) =>
                 {
-                    var queryAttr = prop.GetCustomAttribute<QueryAttribute>();
-                    var value = prop.GetValue(parameter)?.ToString();
-                    if (value == null) continue;
-                    if (queryAttr != null)
-                    {
-                        queryParams[queryAttr.Name] = value;
-                    }
-                    else
-                    {
-                        queryParams[prop.Name] = value;
-                    }
-                }
+                    var queryAttribute = parameterInfos[index].GetCustomAttribute<QueryAttribute>();
+                    var paramName = queryAttribute?.Name ?? parameterInfos[index].Name;
+                    return $"{paramName}={param}";
+                }));
+
+                url += "?" + query;
             }
 
-            var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
-            var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
-
-            return new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            return new HttpRequestMessage(HttpMethod.Get, url);
         }
 
-        private HttpRequestMessage HandlePost(string url, object[] parameters)
+        //private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parameters)
+        //{
+        //    if (parameters.Length > 0)
+        //    {
+        //        var query = string.Join("&", parameters.Select((param, index) => $"{parameterInfos[index].Name}={param}"));
+        //        url += "?" + query;
+        //    }
+
+        //    return new HttpRequestMessage(HttpMethod.Get, url);
+        //}
+
+        private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
             object bodyContent = null;
             var queryParams = new Dictionary<string, string>();
 
-            foreach (var parameter in parameters)
+            for (int i = 0; i < parameters.Length; i++)
             {
-                var paramType = parameter.GetType();
-                var paramAttr = paramType.GetCustomAttribute<BodyAttribute>();
-                var queryAttr = paramType.GetCustomAttribute<QueryAttribute>();
+                var parameter = parameters[i];
+                var parameterInfo = parameterInfos[i];
 
-                if (paramAttr != null)
+                if (parameterInfo.GetCustomAttribute<BodyAttribute>() != null)
                 {
                     if (bodyContent != null)
                     {
@@ -112,9 +270,9 @@ namespace RESTween
                     }
                     bodyContent = parameter;
                 }
-                else if (queryAttr != null)
+                else if (parameterInfo.GetCustomAttribute<QueryAttribute>() != null)
                 {
-                    queryParams[queryAttr.Name] = parameter.ToString();
+                    queryParams[parameterInfo.Name] = parameter.ToString();
                 }
                 else if (parameters.Length == 1)
                 {
@@ -137,44 +295,21 @@ namespace RESTween
             return httpRequestMessage;
         }
 
-        private HttpRequestMessage HandlePut(string url, object[] parameters)
+        private HttpRequestMessage HandlePut(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            var result = HandlePost(url, parameters);
+            var result = HandlePost(url, parameterInfos, parameters);
             result.Method = HttpMethod.Put;
             return result;
         }
 
-        private HttpRequestMessage HandleDelete(string url, object[] parameters)
+        private HttpRequestMessage HandleDelete(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            var queryParams = new Dictionary<string, string>();
-
-            foreach (var parameter in parameters)
-            {
-                var paramType = parameter.GetType();
-                var parameterInfo = paramType.GetProperties();
-                foreach (var prop in parameterInfo)
-                {
-                    var queryAttr = prop.GetCustomAttribute<QueryAttribute>();
-                    var value = prop.GetValue(parameter)?.ToString();
-                    if (value == null) continue;
-                    if (queryAttr != null)
-                    {
-                        queryParams[queryAttr.Name] = value;
-                    }
-                    else
-                    {
-                        queryParams[prop.Name] = value;
-                    }
-                }
-            }
-
-            var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
-            var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
-
-            return new HttpRequestMessage(HttpMethod.Delete, requestUrl);
+            var result = HandleGet(url, parameterInfos, parameters);
+            result.Method = HttpMethod.Delete;
+            return result;
         }
     }
 
 }
 
-  
+
