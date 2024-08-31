@@ -81,14 +81,14 @@ namespace RESTween
 
         private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            object bodyContent = null;
+            object? bodyContent = null;
             var queryParams = new Dictionary<string, string>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
                 var parameterInfo = parameterInfos[i];
-
+                var quaryAttribute = parameterInfo.GetCustomAttribute<QueryAttribute>();
                 if (parameterInfo.GetCustomAttribute<BodyAttribute>() != null)
                 {
                     if (bodyContent != null)
@@ -97,9 +97,10 @@ namespace RESTween
                     }
                     bodyContent = parameter;
                 }
-                else if (parameterInfo.GetCustomAttribute<QueryAttribute>() != null)
+                else if (quaryAttribute != null)
                 {
-                    queryParams[parameterInfo.Name] = parameter.ToString();
+                    
+                    queryParams[quaryAttribute.Name] = parameter.ToString();
                 }
                 else if (parameters.Length == 1)
                 {
