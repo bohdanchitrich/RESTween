@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -64,15 +65,24 @@ namespace RESTween
         }
         private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            if (parameters.Length > 0)
-            {
-                var query = string.Join("&", parameters.Select((param, index) =>
-                {
-                    var queryAttribute = parameterInfos[index].GetCustomAttribute<QueryAttribute>();
-                    var paramName = queryAttribute?.Name ?? parameterInfos[index].Name;
-                    return $"{paramName}={param}";
-                }));
+            var usedParameters = new HashSet<string>();
 
+            url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
+
+            var query = string.Join("&", parameters.Select((param, index) =>
+            {
+                var paramName = parameterInfos[index].Name;
+
+                if (usedParameters.Contains(paramName))
+                    return null; 
+
+                var queryAttribute = parameterInfos[index].GetCustomAttribute<QueryAttribute>();
+                paramName = queryAttribute?.Name ?? paramName;
+                return $"{paramName}={param}";
+            }).Where(q => q != null));
+
+            if (!string.IsNullOrWhiteSpace(query))
+            {
                 url += "?" + query;
             }
 
@@ -81,15 +91,25 @@ namespace RESTween
 
         private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
+            var usedParameters = new HashSet<string>();
+
+            url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
+
             object? bodyContent = null;
             var queryParams = new Dictionary<string, string>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
-                var parameterInfo = parameterInfos[i];
-                var quaryAttribute = parameterInfo.GetCustomAttribute<QueryAttribute>();
-                if (parameterInfo.GetCustomAttribute<BodyAttribute>() != null)
+                var paramName = parameterInfos[i].Name;
+
+                if (usedParameters.Contains(paramName))
+                    continue;
+
+                var bodyAttribute = parameterInfos[i].GetCustomAttribute<BodyAttribute>();
+                var queryAttribute = parameterInfos[i].GetCustomAttribute<QueryAttribute>();
+
+                if (bodyAttribute != null)
                 {
                     if (bodyContent != null)
                     {
@@ -97,18 +117,10 @@ namespace RESTween
                     }
                     bodyContent = parameter;
                 }
-                else if (quaryAttribute != null)
-                {
-                    
-                    queryParams[quaryAttribute.Name] = parameter.ToString();
-                }
-                else if (parameters.Length == 1)
-                {
-                    bodyContent = parameter;
-                }
                 else
                 {
-                    throw new ArgumentException("Multiple parameters without attributes detected. Only one parameter can be used as body content, or others must be marked with [Query].");
+                    paramName = queryAttribute?.Name ?? paramName;
+                    queryParams[paramName] = parameter.ToString();
                 }
             }
 
@@ -123,6 +135,25 @@ namespace RESTween
             return httpRequestMessage;
         }
 
+        private string ReplaceRouteParameters(string url, ParameterInfo[] parameterInfos, object[] parameters, HashSet<string> usedParameters)
+        {
+            for (int i = 0; i < parameterInfos.Length; i++)
+            {
+                var paramInfo = parameterInfos[i];
+                var paramName = paramInfo.Name;
+
+                if (url.Contains($"{{{paramName}}}"))
+                {
+                    url = url.Replace($"{{{paramName}}}", parameters[i].ToString());
+                    usedParameters.Add(paramName);  
+                }
+            }
+
+            return url;
+        }
+
+
+
         private HttpRequestMessage HandlePut(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
             var result = HandlePost(url, parameterInfos, parameters);
@@ -136,6 +167,9 @@ namespace RESTween
             result.Method = HttpMethod.Delete;
             return result;
         }
+
+
+
     }
 
 }
