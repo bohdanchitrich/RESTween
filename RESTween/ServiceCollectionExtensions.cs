@@ -1,5 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using RESTween.Handlers;
+using System;
+using System.Net.Http;
 
 namespace RESTween
 {

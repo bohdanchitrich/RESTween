@@ -1,13 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0;net7.0</TargetFrameworks>
-		<ImplicitUsings>enable</ImplicitUsings>
+		<TargetFrameworks>net8.0;net7.0;net6.0;net5.0;</TargetFrameworks>
+	
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 	<PropertyGroup>
 		<PackageId>RESTween</PackageId>
-		<Version>1.0.11</Version>
+		<Version>1.0.16</Version>
 		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
 		<Description>

@@ -4,6 +4,7 @@ using RESTween.Handlers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -89,10 +90,56 @@ namespace RESTween
             return new HttpRequestMessage(HttpMethod.Get, url);
         }
 
+        //private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
+        //{
+        //    var usedParameters = new HashSet<string>();
+
+        //    url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
+
+        //    object? bodyContent = null;
+        //    var queryParams = new Dictionary<string, string>();
+
+        //    for (int i = 0; i < parameters.Length; i++)
+        //    {
+        //        var parameter = parameters[i];
+        //        var paramName = parameterInfos[i].Name;
+
+        //        if (usedParameters.Contains(paramName))
+        //            continue;
+
+        //        var bodyAttribute = parameterInfos[i].GetCustomAttribute<BodyAttribute>();
+        //        var queryAttribute = parameterInfos[i].GetCustomAttribute<QueryAttribute>();
+
+        //        if (bodyAttribute != null)
+        //        {
+        //            if (bodyContent != null)
+        //            {
+        //                throw new ArgumentException("Multiple parameters cannot be used as body content. Please remove additional parameters or mark them as [Query].");
+        //            }
+        //            bodyContent = parameter;
+        //        }
+        //        else
+        //        {
+        //            paramName = queryAttribute?.Name ?? paramName;
+        //            queryParams[paramName] = parameter.ToString();
+        //        }
+        //    }
+
+        //    var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
+        //    var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
+
+        //    var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, requestUrl)
+        //    {
+        //        Content = bodyContent != null ? new StringContent(JsonSerializer.Serialize(bodyContent), Encoding.UTF8, "application/json") : null
+        //    };
+
+        //    return httpRequestMessage;
+        //}
         private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
             var usedParameters = new HashSet<string>();
 
+            // Заміна маршрутних параметрів у URL
             url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
 
             object? bodyContent = null;
@@ -103,14 +150,16 @@ namespace RESTween
                 var parameter = parameters[i];
                 var paramName = parameterInfos[i].Name;
 
+                // Пропускаємо параметри, що вже використані в маршруті
                 if (usedParameters.Contains(paramName))
                     continue;
 
                 var bodyAttribute = parameterInfos[i].GetCustomAttribute<BodyAttribute>();
                 var queryAttribute = parameterInfos[i].GetCustomAttribute<QueryAttribute>();
 
-                if (bodyAttribute != null)
+                if (bodyAttribute != null || (bodyContent == null && queryAttribute == null && parameterInfos.Length == 1))
                 {
+                    // Якщо параметр позначений як [Body] або це єдиний параметр без атрибуту, який не є query або route, вважаємо його body
                     if (bodyContent != null)
                     {
                         throw new ArgumentException("Multiple parameters cannot be used as body content. Please remove additional parameters or mark them as [Query].");
@@ -119,6 +168,7 @@ namespace RESTween
                 }
                 else
                 {
+                    // Всі інші параметри без атрибутів вважаються query параметрами
                     paramName = queryAttribute?.Name ?? paramName;
                     queryParams[paramName] = parameter.ToString();
                 }

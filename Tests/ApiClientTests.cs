@@ -332,6 +332,32 @@ namespace Tests
             ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
         }
 
+        [Post(baseUrl)]
+        public void PostBodyWithoutAttribute(object body)
+        {
+        }
+
+        [Test]
+        public void PostBodyWithoutAttributeTest()
+        {
+            // Arrange
+
+
+            var bodyContent = new { Name = "John", Age = 30 };
+            var arguments = new object[] { bodyContent };
+
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostBodyWithoutAttribute));
+            var parameters = methodInfo.GetParameters();
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // ClassicAssert
+            ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
+            ClassicAssert.AreEqual(baseUrl, request.RequestUri.ToString());
+            var jsonContent = request.Content.ReadAsStringAsync().Result;
+            ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
+        }
 
 
 
@@ -420,7 +446,7 @@ namespace Tests
 
 
         [Post(baseUrl)]
-        public void PostQuery(int parameter)
+        public void PostQuery([Query("parameter")]int parameter)
         {
         }
         [Test]
@@ -661,274 +687,6 @@ namespace Tests
 
 
         #endregion
-        //    [Post(baseUrl)]
-        //    public void SimulatedPostMethod([Body] object body, int param1)
-        //    {
-        //    }
-
-        //    [Test]
-        //    public void HandlePost_ShouldCreateCorrectRequestWithBody()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var bodyContent = new { Name = "John", Age = 30 };
-        //        var arguments = new object[] { bodyContent, 123 };
-
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedPostMethod));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
-        //        ClassicAssert.AreEqual(baseUrl + "?param1=123", request.RequestUri.ToString());
-        //        var jsonContent = request.Content.ReadAsStringAsync().Result;
-        //        ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
-        //    }
-
-        //    [Post(baseUrl)]
-        //    public void SimulatedPostMethodWithoutBody(int param1, [Query("extraParam")] string param2)
-        //    {
-        //    }
-
-        //    [Test]
-        //    public void HandlePost_ShouldCreateCorrectRequestWithoutBody()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 123, "test" };
-
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedPostMethodWithoutBody));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}?param1=123&extraParam=test", request.RequestUri.ToString());
-        //        ClassicAssert.IsNull(request.Content); // Content should be null since no body is specified
-        //    }
-
-        //    [Put(baseUrl)]
-        //    public void SimulatedPutMethod([Body] object body)
-        //    {
-        //    }
-
-        //    [Test]
-        //    public void HandlePut_ShouldCreateCorrectRequestWithBody()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var bodyContent = new { Name = "Jane", Age = 25 };
-        //        var arguments = new object[] { bodyContent };
-
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedPutMethod));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Put, request.Method);
-        //        ClassicAssert.AreEqual(baseUrl, request.RequestUri.ToString());
-        //        var jsonContent = request.Content.ReadAsStringAsync().Result;
-        //        ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
-        //    }
-
-        //    [Put(baseUrl)]
-        //    public void SimulatedPutMethodWithoutBody(int param1, [Query("extraParam")] string param2)
-        //    {
-        //    }
-
-        //    [Test]
-        //    public void HandlePut_ShouldCreateCorrectRequestWithoutBody()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 456, "anotherTest" };
-
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedPutMethodWithoutBody));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Put, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}?param1=456&extraParam=anotherTest", request.RequestUri.ToString());
-        //        ClassicAssert.IsNull(request.Content); // Content should be null since no body is specified
-        //    }
-
-        //    [Post(baseUrl)]
-        //    public void SimulatedPostMethodWithMultipleQueryParams([Body] object body, int param1, [Query("customName")] string param2)
-        //    {
-        //    }
-
-        //    [Test]
-        //    public void HandlePost_ShouldHandleMultipleQueryParamsCorrectly()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var bodyContent = new { Name = "Doe", Age = 40 };
-        //        var arguments = new object[] { bodyContent, 789, "customValue" };
-
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(SimulatedPostMethodWithMultipleQueryParams));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        HttpRequestMessage request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}?param1=789&customName=customValue", request.RequestUri.ToString());
-        //        var jsonContent = request.Content.ReadAsStringAsync().Result;
-        //        ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
-        //    }
-
-
-        //    // Метод з маршрутом, що містить параметр {id}
-        //    [Get("/users/{id}")]
-        //    public Task GetUserAsync(int id)
-        //    {
-        //        return Task.CompletedTask;
-        //    }
-
-        //    [Test]
-        //    public void ReplaceRouteParameters_ShouldReplaceRouteParameterInUrl()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 42 };
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUserAsync));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        var request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}/users/42", request.RequestUri.ToString());
-        //    }
-
-        //    // Метод з маршрутом, що містить декілька параметрів {id} і {action}
-        //    [Get("/users/{id}/{action}")]
-        //    public Task GetUserActionAsync(int id, string action)
-        //    {
-        //        return Task.CompletedTask;
-        //    }
-
-        //    [Test]
-        //    public void ReplaceRouteParameters_ShouldReplaceMultipleRouteParametersInUrl()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 42, "edit" };
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUserActionAsync));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        var request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}/users/42/edit", request.RequestUri.ToString());
-        //    }
-
-        //    // Метод з маршрутом, що містить параметр і query параметри
-        //    [Get("/users/{id}")]
-        //    public Task GetUserWithQueryAsync(int id, [Query("filter")] string filter)
-        //    {
-        //        return Task.CompletedTask;
-        //    }
-
-        //    [Test]
-        //    public void ReplaceRouteParameters_ShouldReplaceRouteParameterAndAppendQuery()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 42, "active" };
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUserWithQueryAsync));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        var request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}/users/42?filter=active", request.RequestUri.ToString());
-        //    }
-
-        //    // Метод з маршрутом, що містить необов'язковий параметр, який може бути не вказаний
-        //    [Get("/users/{id}/{optionalAction?}")]
-        //    public Task GetUserWithOptionalActionAsync(int id, string optionalAction = "view")
-        //    {
-        //        return Task.CompletedTask;
-        //    }
-
-        //    [Test]
-        //    public void ReplaceRouteParameters_ShouldReplaceOptionalRouteParameterInUrl()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 42 };
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUserWithOptionalActionAsync));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        var request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}/users/42/view", request.RequestUri.ToString());
-        //    }
-
-        //    [Test]
-        //    public void ReplaceRouteParameters_ShouldReplaceOptionalRouteParameterWithProvidedValue()
-        //    {
-        //        // Arrange
-        //        var requestHandlerMock = new Mock<IRequestHandler>();
-        //        var httpClient = new HttpClient();
-        //        var apiClient = new ApiClient(requestHandlerMock.Object, httpClient);
-
-        //        var arguments = new object[] { 42, "edit" };
-        //        MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUserWithOptionalActionAsync));
-        //        var parameters = methodInfo.GetParameters();
-
-        //        // Act
-        //        var request = apiClient.CreateRequest(methodInfo, parameters, arguments);
-
-        //        // ClassicAssert
-        //        ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
-        //        ClassicAssert.AreEqual($"{baseUrl}/users/42/edit", request.RequestUri.ToString());
-        //    }
+      
     }
 }
