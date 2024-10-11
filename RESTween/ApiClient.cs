@@ -64,144 +64,261 @@ namespace RESTween
 
             return request;
         }
-        private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parameters)
+        private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parametersValues)
         {
-            var usedParameters = new HashSet<string>();
 
-            url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
+            object? body = null;
+            var quarries = new Dictionary<string, object>();
+            var routes = new Dictionary<string, object>();
 
-            var query = string.Join("&", parameters.Select((param, index) =>
+            for (int i = 0; i < parametersValues.Length; i++)
             {
-                var paramName = parameterInfos[index].Name;
+                var value = parametersValues[i];
+                var info = parameterInfos[i];
+                var paramName = info.Name;
+                if (paramName == null) continue;
 
-                if (usedParameters.Contains(paramName))
-                    return null; 
-
-                var queryAttribute = parameterInfos[index].GetCustomAttribute<QueryAttribute>();
-                paramName = queryAttribute?.Name ?? paramName;
-                return $"{paramName}={param}";
-            }).Where(q => q != null));
-
-            if (!string.IsNullOrWhiteSpace(query))
-            {
-                url += "?" + query;
-            }
-
-            return new HttpRequestMessage(HttpMethod.Get, url);
-        }
-
-        //private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
-        //{
-        //    var usedParameters = new HashSet<string>();
-
-        //    url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
-
-        //    object? bodyContent = null;
-        //    var queryParams = new Dictionary<string, string>();
-
-        //    for (int i = 0; i < parameters.Length; i++)
-        //    {
-        //        var parameter = parameters[i];
-        //        var paramName = parameterInfos[i].Name;
-
-        //        if (usedParameters.Contains(paramName))
-        //            continue;
-
-        //        var bodyAttribute = parameterInfos[i].GetCustomAttribute<BodyAttribute>();
-        //        var queryAttribute = parameterInfos[i].GetCustomAttribute<QueryAttribute>();
-
-        //        if (bodyAttribute != null)
-        //        {
-        //            if (bodyContent != null)
-        //            {
-        //                throw new ArgumentException("Multiple parameters cannot be used as body content. Please remove additional parameters or mark them as [Query].");
-        //            }
-        //            bodyContent = parameter;
-        //        }
-        //        else
-        //        {
-        //            paramName = queryAttribute?.Name ?? paramName;
-        //            queryParams[paramName] = parameter.ToString();
-        //        }
-        //    }
-
-        //    var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
-        //    var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
-
-        //    var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, requestUrl)
-        //    {
-        //        Content = bodyContent != null ? new StringContent(JsonSerializer.Serialize(bodyContent), Encoding.UTF8, "application/json") : null
-        //    };
-
-        //    return httpRequestMessage;
-        //}
-        private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parameters)
-        {
-            var usedParameters = new HashSet<string>();
-
-            // Заміна маршрутних параметрів у URL
-            url = ReplaceRouteParameters(url, parameterInfos, parameters, usedParameters);
-
-            object? bodyContent = null;
-            var queryParams = new Dictionary<string, string>();
-
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                var parameter = parameters[i];
-                var paramName = parameterInfos[i].Name;
-
-                // Пропускаємо параметри, що вже використані в маршруті
-                if (usedParameters.Contains(paramName))
-                    continue;
-
-                var bodyAttribute = parameterInfos[i].GetCustomAttribute<BodyAttribute>();
-                var queryAttribute = parameterInfos[i].GetCustomAttribute<QueryAttribute>();
-
-                if (bodyAttribute != null || (bodyContent == null && queryAttribute == null && parameterInfos.Length == 1))
+                //Parameter don`t have attributes
+                if (!HasAttributes(info))
                 {
-                    // Якщо параметр позначений як [Body] або це єдиний параметр без атрибуту, який не є query або route, вважаємо його body
-                    if (bodyContent != null)
+
+                    //Parameter not simple type
+                    if (!ParameterTypeChecker.IsSimpleType(info.ParameterType))
                     {
-                        throw new ArgumentException("Multiple parameters cannot be used as body content. Please remove additional parameters or mark them as [Query].");
+                        if (body != null)
+                        {
+                            throw new Exception($"Request {url} can have only one body parameter");
+                        }
+                        body = value;
+                        continue;
                     }
-                    bodyContent = parameter;
+                    //Parameter in route
+                    if (url.Contains($"{{{paramName}}}"))
+                    {
+                        //Parameter already exist
+                        if (routes.ContainsKey(paramName))
+                        {
+                            throw new Exception($"{paramName} duplicated in {url}");
+                        }
+                        routes[paramName] = value;
+                        continue;
+                    }
+                    //Parameter in query
+
+                    //Parameter already exist
+                    if (quarries.ContainsKey(paramName))
+                    {
+                        throw new Exception($"{paramName} duplicated int {url}");
+                    }
+                    quarries[paramName] = value;
+                    continue;
                 }
-                else
+                //Parameter have attribute route
+                var routeAttribute = info.GetCustomAttribute<RouteAttribute>();
+                var routeName = routeAttribute?.Name ?? paramName;
+                if (routeAttribute != null)
                 {
-                    // Всі інші параметри без атрибутів вважаються query параметрами
-                    paramName = queryAttribute?.Name ?? paramName;
-                    queryParams[paramName] = parameter.ToString();
+                    if (!url.Contains($"{{{routeName}}}"))
+                    {
+                        throw new Exception($"Route {url} not contain {routeName} parameter");
+                    }
+                    //Parameter already exist
+                    if (routes.ContainsKey(paramName))
+                    {
+                        throw new Exception($"{paramName} duplicated in {url}");
+                    }
+                    routes[paramName] = value;
+                    continue;
                 }
+                //Parameter have attribute query
+                var queryAttribute = info.GetCustomAttribute<QueryAttribute>();
+                var queryName = queryAttribute?.Name ?? paramName;
+                if (queryAttribute != null)
+                {
+                    //Parameter already exist
+                    if (quarries.ContainsKey(queryName))
+                    {
+                        throw new Exception($"{queryName} duplicated in {url}");
+                    }
+                    quarries[queryName] = value;
+                    continue;
+                }
+
+                var bodyAttribute = info.GetCustomAttribute<BodyAttribute>();
+                if (!ParameterTypeChecker.IsSimpleType(info.ParameterType))
+                {
+                    if (body != null)
+                    {
+                        throw new Exception($"Request {url} can have only one body parameter");
+                    }
+                    body = value;
+                    continue;
+                }
+
+
+                throw new Exception($"Fail to parse parameter {paramName} in {url}");
             }
-
-            var queryString = string.Join("&", queryParams.Select(kv => $"{kv.Key}={kv.Value}"));
-            var requestUrl = string.IsNullOrWhiteSpace(queryString) ? url : $"{url}?{queryString}";
-
-            var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, requestUrl)
+            //Apply route parameters to url
+            foreach (var routeParam in routes)
             {
-                Content = bodyContent != null ? new StringContent(JsonSerializer.Serialize(bodyContent), Encoding.UTF8, "application/json") : null
+                url = url.Replace($"{{{routeParam.Key}}}", routeParam.Value?.ToString());
+            }
+            //Creating quary segment
+            var query = string.Join("&", quarries.Select((keyPair) =>
+            {
+                return $"{keyPair.Key}={keyPair.Value}";
+            }));
+
+            //Apply query parameters to url
+            if (!string.IsNullOrEmpty(query))
+            {
+
+                url = $"{url}?{query}";
+            }
+            //Apply body parameter 
+            var httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, url)
+            {
+                Content = body != null ? new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") : null
             };
 
             return httpRequestMessage;
         }
 
-        private string ReplaceRouteParameters(string url, ParameterInfo[] parameterInfos, object[] parameters, HashSet<string> usedParameters)
+
+        private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parametersValues)
         {
-            for (int i = 0; i < parameterInfos.Length; i++)
+            object? body = null;
+            var quarries = new Dictionary<string, object>();
+            var routes = new Dictionary<string, object>();
+
+            for (int i = 0; i < parametersValues.Length; i++)
             {
-                var paramInfo = parameterInfos[i];
-                var paramName = paramInfo.Name;
+                var value = parametersValues[i];
+                var info = parameterInfos[i];
+                var paramName = info.Name;
+                if (paramName == null) continue;
 
-                if (url.Contains($"{{{paramName}}}"))
+                //Parameter don`t have attributes
+                if (!HasAttributes(info))
                 {
-                    url = url.Replace($"{{{paramName}}}", parameters[i].ToString());
-                    usedParameters.Add(paramName);  
-                }
-            }
 
-            return url;
+                    //Parameter not simple type
+                    if (!ParameterTypeChecker.IsSimpleType(info.ParameterType))
+                    {
+                        if (body != null)
+                        {
+                            throw new Exception($"Request {url} can have only one body parameter");
+                        }
+                        body = value;
+                        continue;
+                    }
+                    //Parameter in route
+                    if (url.Contains($"{{{paramName}}}"))
+                    {
+                        //Parameter already exist
+                        if (routes.ContainsKey(paramName))
+                        {
+                            throw new Exception($"{paramName} duplicated in {url}");
+                        }
+                        routes[paramName] = value;
+                        continue;
+                    }
+                    //Parameter in query
+
+                    //Parameter already exist
+                    if (quarries.ContainsKey(paramName))
+                    {
+                        throw new Exception($"{paramName} duplicated int {url}");
+                    }
+                    quarries[paramName] = value;
+                    continue;
+                }
+                //Parameter have attribute route
+                var routeAttribute = info.GetCustomAttribute<RouteAttribute>();
+                var routeName = routeAttribute?.Name ?? paramName;
+                if (routeAttribute != null)
+                {
+                    if (!url.Contains($"{{{routeName}}}"))
+                    {
+                        throw new Exception($"Route {url} not contain {routeName} parameter");
+                    }
+                    //Parameter already exist
+                    if (routes.ContainsKey(paramName))
+                    {
+                        throw new Exception($"{paramName} duplicated in {url}");
+                    }
+                    routes[paramName] = value;
+                    continue;
+                }
+                //Parameter have attribute query
+                var queryAttribute = info.GetCustomAttribute<QueryAttribute>();
+                var queryName = queryAttribute?.Name ?? paramName;
+                if (queryAttribute != null)
+                {
+                    //Parameter already exist
+                    if (quarries.ContainsKey(queryName))
+                    {
+                        throw new Exception($"{queryName} duplicated in {url}");
+                    }
+                    quarries[queryName] = value;
+                    continue;
+                }
+
+                var bodyAttribute = info.GetCustomAttribute<BodyAttribute>();
+                if (bodyAttribute != null)
+                {
+                    if (body != null)
+                    {
+                        throw new Exception($"Request {url} can have only one body parameter");
+                    }
+                    body = value;
+                    continue;
+                }
+
+
+                throw new Exception($"Fail to parse parameter {paramName} in {url}");
+            }
+            //Apply route parameters to url
+            foreach (var routeParam in routes)
+            {
+                url = url.Replace($"{{{routeParam.Key}}}", routeParam.Value?.ToString());
+            }
+            //Creating quary segment
+            var query = string.Join("&", quarries.Select((keyPair) =>
+            {
+                return $"{keyPair.Key}={keyPair.Value}";
+            }));
+
+            //Apply query parameters to url
+            if (!string.IsNullOrEmpty(query))
+            {
+
+                url = $"{url}?{query}";
+            }
+            //Apply body parameter 
+            var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = body != null ? new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") : null
+            };
+
+            return httpRequestMessage;
         }
 
+
+
+
+        private bool HasAttributes(ParameterInfo parameterInfo)
+        {
+            var attributes = parameterInfo.GetCustomAttributes();
+            foreach (var attribute in attributes)
+            {
+                if (attribute.GetType() == typeof(QueryAttribute)) return true;
+                if (attribute.GetType() == typeof(RouteAttribute)) return true;
+                if (attribute.GetType() == typeof(BodyAttribute)) return true;
+
+            }
+            return false;
+        }
 
 
         private HttpRequestMessage HandlePut(string url, ParameterInfo[] parameterInfos, object[] parameters)
