@@ -39,7 +39,7 @@ namespace RESTween
 
         public HttpRequestMessage CreateRequest(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            HttpRequestMessage? request = null;
+            HttpRequestMessage request = null;
 
             if (method.GetCustomAttribute<GetAttribute>() is GetAttribute getAttr)
             {
@@ -67,7 +67,7 @@ namespace RESTween
         private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parametersValues)
         {
 
-            object? body = null;
+            object body = null;
             var quarries = new Dictionary<string, object>();
             var routes = new Dictionary<string, object>();
 
@@ -187,7 +187,7 @@ namespace RESTween
 
         private HttpRequestMessage HandlePost(string url, ParameterInfo[] parameterInfos, object[] parametersValues)
         {
-            object? body = null;
+            object body = null;
             var quarries = new Dictionary<string, object>();
             var routes = new Dictionary<string, object>();
 
@@ -307,19 +307,6 @@ namespace RESTween
 
 
 
-        private bool HasAttributes(ParameterInfo parameterInfo)
-        {
-            var attributes = parameterInfo.GetCustomAttributes();
-            foreach (var attribute in attributes)
-            {
-                if (attribute.GetType() == typeof(QueryAttribute)) return true;
-                if (attribute.GetType() == typeof(RouteAttribute)) return true;
-                if (attribute.GetType() == typeof(BodyAttribute)) return true;
-
-            }
-            return false;
-        }
-
 
         private HttpRequestMessage HandlePut(string url, ParameterInfo[] parameterInfos, object[] parameters)
         {
@@ -333,6 +320,22 @@ namespace RESTween
             var result = HandleGet(url, parameterInfos, parameters);
             result.Method = HttpMethod.Delete;
             return result;
+        }
+
+
+
+
+        private bool HasAttributes(ParameterInfo parameterInfo)
+        {
+            var attributes = parameterInfo.GetCustomAttributes();
+            foreach (var attribute in attributes)
+            {
+                if (attribute.GetType() == typeof(QueryAttribute)) return true;
+                if (attribute.GetType() == typeof(RouteAttribute)) return true;
+                if (attribute.GetType() == typeof(BodyAttribute)) return true;
+
+            }
+            return false;
         }
 
 
