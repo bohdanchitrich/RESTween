@@ -3,6 +3,7 @@ using RESTween.Attributes;
 using RESTween.Handlers;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -281,12 +282,20 @@ namespace RESTween
             //Apply route parameters to url
             foreach (var routeParam in routes)
             {
-                url = url.Replace($"{{{routeParam.Key}}}", routeParam.Value?.ToString());
+                if (string.IsNullOrEmpty(routeParam.Value?.ToString()))
+                {
+                    throw new Exception($"Query parameter required {routeParam.Key}");
+                }
+                url = url.Replace($"{{{routeParam.Key}}}", Uri.EscapeDataString(routeParam.Value?.ToString()!));
             }
             //Creating quary segment
             var query = string.Join("&", quarries.Select((keyPair) =>
             {
-                return $"{keyPair.Key}={keyPair.Value}";
+                if (string.IsNullOrEmpty(keyPair.Value?.ToString()))
+                {
+                    throw new Exception($"Query parameter required {keyPair.Key}");
+                }
+                return $"{keyPair.Key}={Uri.EscapeDataString(keyPair.Value?.ToString()!)}";
             }));
 
             //Apply query parameters to url
