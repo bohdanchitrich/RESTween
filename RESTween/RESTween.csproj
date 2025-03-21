@@ -5,9 +5,12 @@
 	
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
+
+
+
 	<PropertyGroup>
 		<PackageId>RESTween</PackageId>
-		<Version>1.0.18</Version>
+		<Version>1.0.21</Version>
 		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
 		<Description>
@@ -17,6 +20,9 @@
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<OutputPath>bin\Release\</OutputPath>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageProjectUrl>https://github.com/bohdanchitrich/RESTween</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/bohdanchitrich/RESTween</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
 	</PropertyGroup>
 	<ItemGroup>
 		<None Include="README.md" Pack="true" PackagePath="" />

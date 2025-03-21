@@ -26,5 +26,22 @@ namespace RESTween
             return services;
         }
 
+        public static IServiceCollection AddApiClient<TInterface>(this IServiceCollection services, HttpClient httpClient)
+               where TInterface : class
+        {
+
+            services.AddScoped(provider =>
+            {
+                var handler = provider.GetService<IRequestHandler>();
+                if (handler == null)
+                {
+                    handler = new DefaultRequestHandler();
+                }
+                return ApiClientFactory.CreateClient<TInterface>(httpClient, handler); ;
+            });
+
+            return services;
+        }
+
     }
 }

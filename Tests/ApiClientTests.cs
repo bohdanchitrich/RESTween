@@ -81,7 +81,75 @@ namespace Tests
 
         }
 
+        [Test]
+        public void GetQueryTwoTest_WithHashSymbol()
+        {
+            // Arrange
+            var arguments = new object[] { 123, "#f90b0b" };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQueryTwo));
+            var parameters = methodInfo.GetParameters();
 
+            string expectedUrl = $"{baseUrl}?parameter1=123&parameter2=%23f90b0b";
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+            ClassicAssert.AreEqual(expectedUrl, request.RequestUri.ToString());
+        }
+        [Test]
+        public void GetQuerySpecialCharactersTest()
+        {
+            // Arrange
+            var arguments = new object[] { 123, "value with spaces & symbols?" };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQueryTwo));
+            var parameters = methodInfo.GetParameters();
+
+            string expectedUrl = $"{baseUrl}?parameter1=123&parameter2=value+with+spaces+%26+symbols%3f";
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+            ClassicAssert.AreEqual(expectedUrl, request.RequestUri.ToString());
+        }
+        [Test]
+        public void GetQueryWithNullParameterTest()
+        {
+            // Arrange
+            var arguments = new object[] { 123, null };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQueryTwo));
+            var parameters = methodInfo.GetParameters();
+
+            string expectedUrl = $"{baseUrl}?parameter1=123";
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+            ClassicAssert.AreEqual(expectedUrl, request.RequestUri.ToString());
+        }
+
+        [Test]
+        public void GetQueryWithEmptyStringTest()
+        {
+            // Arrange
+            var arguments = new object[] { 123, "" };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQueryTwo));
+            var parameters = methodInfo.GetParameters();
+
+            string expectedUrl = $"{baseUrl}?parameter1=123&parameter2=";
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+            ClassicAssert.AreEqual(expectedUrl, request.RequestUri.ToString());
+        }
 
         [Get(baseUrl)]
         public void GetQueryAttribute([Query("parameterQuery")]int parameter)
@@ -415,7 +483,59 @@ namespace Tests
             ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
         }
 
+        [Test]
+        public void PostBodyWithNullTest()
+        {
+            // Arrange
+            var arguments = new object[] { null };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostBody));
+            var parameters = methodInfo.GetParameters();
 
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
+            ClassicAssert.AreEqual(baseUrl, request.RequestUri.ToString());
+            ClassicAssert.IsNull(request.Content); // Контент має бути null
+        }
+        [Test]
+        public void PostBodyWithEmptyObjectTest()
+        {
+            // Arrange
+            var bodyContent = new { };
+            var arguments = new object[] { bodyContent };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostBody));
+            var parameters = methodInfo.GetParameters();
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
+            ClassicAssert.AreEqual(baseUrl, request.RequestUri.ToString());
+            var jsonContent = request.Content.ReadAsStringAsync().Result;
+            ClassicAssert.AreEqual("{}", jsonContent);
+        }
+
+        [Test]
+        public void PostQueryWithNullTest()
+        {
+            // Arrange
+            var arguments = new object[] { null };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostQueryAttribute));
+            var parameters = methodInfo.GetParameters();
+
+            // Очікуваний URL без параметра
+            string expectedUrl = $"{baseUrl}";
+
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+
+            // Assert
+            ClassicAssert.AreEqual(HttpMethod.Post, request.Method);
+            ClassicAssert.AreEqual(expectedUrl, request.RequestUri.ToString());
+        }
 
         [Post(baseUrl + "/{param2}")]
         public void PostBodyWithUrlParameterAndQuery([Query("queryParam")]string param1,[Body] object body, int param2)

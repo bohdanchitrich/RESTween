@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace RESTween
 {
@@ -162,13 +163,14 @@ namespace RESTween
             //Apply route parameters to url
             foreach (var routeParam in routes)
             {
-                url = url.Replace($"{{{routeParam.Key}}}", routeParam.Value?.ToString());
+
+                url = url.Replace($"{{{routeParam.Key}}}", HttpUtility.UrlEncode(routeParam.Value?.ToString()!));
             }
             //Creating quary segment
-            var query = string.Join("&", quarries.Select((keyPair) =>
-            {
-                return $"{keyPair.Key}={keyPair.Value}";
-            }));
+            var query = string.Join("&", quarries
+    .Where(keyPair => keyPair.Value?.ToString() != null)
+    .Select(keyPair => $"{keyPair.Key}={HttpUtility.UrlEncode(keyPair.Value?.ToString()!)}"));
+
 
             //Apply query parameters to url
             if (!string.IsNullOrEmpty(query))
@@ -282,26 +284,18 @@ namespace RESTween
             //Apply route parameters to url
             foreach (var routeParam in routes)
             {
-                if (string.IsNullOrEmpty(routeParam.Value?.ToString()))
-                {
-                    throw new Exception($"Query parameter required {routeParam.Key}");
-                }
-                url = url.Replace($"{{{routeParam.Key}}}", Uri.EscapeDataString(routeParam.Value?.ToString()!));
+
+                url = url.Replace($"{{{routeParam.Key}}}", HttpUtility.UrlEncode(routeParam.Value?.ToString()!));
             }
             //Creating quary segment
-            var query = string.Join("&", quarries.Select((keyPair) =>
-            {
-                if (string.IsNullOrEmpty(keyPair.Value?.ToString()))
-                {
-                    throw new Exception($"Query parameter required {keyPair.Key}");
-                }
-                return $"{keyPair.Key}={Uri.EscapeDataString(keyPair.Value?.ToString()!)}";
-            }));
+            var query = string.Join("&", quarries
+.Where(keyPair => keyPair.Value?.ToString() != null)
+.Select(keyPair => $"{keyPair.Key}={HttpUtility.UrlEncode(keyPair.Value?.ToString()!)}"));
+
 
             //Apply query parameters to url
             if (!string.IsNullOrEmpty(query))
             {
-
                 url = $"{url}?{query}";
             }
             //Apply body parameter 
