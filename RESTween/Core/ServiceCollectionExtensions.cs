@@ -1,9 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using RESTween.Handlers;
+using RESTween.Client;
+using RESTween.Client.Handlers;
+using RESTween.Server;
 using System;
 using System.Net.Http;
 
-namespace RESTween
+namespace RESTween.Core
 {
     public static class ServiceCollectionExtensions
     {
@@ -29,7 +31,6 @@ namespace RESTween
         public static IServiceCollection AddApiClient<TInterface>(this IServiceCollection services, HttpClient httpClient)
                where TInterface : class
         {
-
             services.AddScoped(provider =>
             {
                 var handler = provider.GetService<IRequestHandler>();
@@ -42,6 +43,22 @@ namespace RESTween
 
             return services;
         }
+
+
+        public static IServiceCollection AddApiDispatcher<TInterface, TImplementation>(this IServiceCollection services) 
+            where TImplementation : class, TInterface where TInterface : class
+        {
+            services.AddScoped<TInterface, TImplementation>();
+
+            services.AddScoped(provider =>
+            {
+                var implementation = provider.GetRequiredService<TInterface>();
+                return ApiDispatcherFactory.CreateApiDispatcher(implementation); ;
+            });
+            return services;
+        }
+
+
 
     }
 }

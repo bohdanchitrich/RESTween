@@ -3,11 +3,11 @@ using RESTween.Attributes;
 using NUnit.Framework;
 using System.Reflection;
 using Moq;
-using RESTween;
-using RESTween.Handlers;
 using NUnit.Framework.Legacy;
 using System.Text.Json;
 using System.Net.Http;
+using RESTween.Client;
+using RESTween.Client.Handlers;
 namespace Tests
 {
     [TestFixture]

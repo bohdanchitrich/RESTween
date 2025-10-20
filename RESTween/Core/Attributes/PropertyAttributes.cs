@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RESTween.Attributes
+namespace RESTween.Core.Attributes
 {
     [AttributeUsage(AttributeTargets.Parameter)]
     public class QueryAttribute : Attribute

@@ -3,7 +3,7 @@ using System;
 using System.Threading.Tasks;
 
 
-namespace RESTween
+namespace RESTween.Client
 {
     public class ApiServiceInterceptor<T> : IAsyncInterceptor
     {

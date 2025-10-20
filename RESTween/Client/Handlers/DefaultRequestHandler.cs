@@ -2,7 +2,7 @@
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 
-namespace RESTween.Handlers
+namespace RESTween.Client.Handlers
 {
     public sealed class DefaultRequestHandler : IRequestHandler
     {

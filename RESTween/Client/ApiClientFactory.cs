@@ -1,8 +1,8 @@
 ﻿using Castle.DynamicProxy;
-using RESTween.Handlers;
+using RESTween.Client.Handlers;
 using System.Net.Http;
 
-namespace RESTween
+namespace RESTween.Client
 {
     public static class ApiClientFactory
     {

@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace RESTween.Handlers
+namespace RESTween.Client.Handlers
 {
     public interface IRequestHandler
     {

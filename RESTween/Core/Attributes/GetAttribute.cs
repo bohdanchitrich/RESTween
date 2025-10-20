@@ -4,18 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RESTween.Attributes
+namespace RESTween.Core.Attributes
 {
     [AttributeUsage(AttributeTargets.Method)]
-    public class PutAttribute : Attribute
+    public class GetAttribute : Attribute
     {
         public string Url { get; }
 
-        public PutAttribute(string url)
+        public GetAttribute(string url)
         {
             Url = url;
         }
     }
-
-   
 }

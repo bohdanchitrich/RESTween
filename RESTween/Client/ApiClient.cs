@@ -1,6 +1,7 @@
 ﻿using Castle.DynamicProxy;
-using RESTween.Attributes;
-using RESTween.Handlers;
+using RESTween.Client.Handlers;
+using RESTween.Core;
+using RESTween.Core.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -14,7 +15,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace RESTween
+namespace RESTween.Client
 {
     public class ApiClient
     {

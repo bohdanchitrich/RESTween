@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFrameworks>net8.0;net7.0;net6.0;net5.0;</TargetFrameworks>
+
+	  <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+
+	<PropertyGroup>
+		<PackageId>RESTween.Server</PackageId>
+		<Version>1.0.22</Version>
+		<Authors>Bohdan Khitrikh</Authors>
+		<Product>Library</Product>
+		<Description>
+		</Description>
+		<PackageTags>REST;API;HTTP;Proxy;DynamicProxy;Castle;HttpClient</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<OutputPath>bin\Release\</OutputPath>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageProjectUrl>https://github.com/bohdanchitrich/RESTween</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/bohdanchitrich/RESTween</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+	</PropertyGroup>
+</Project>
