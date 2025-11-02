@@ -64,7 +64,8 @@ namespace RESTween.Client
             {
                 throw new NotImplementedException("Only GET, POST, PUT, and DELETE methods are supported.");
             }
-
+            var id = MethodIdGenerator.Create(method);
+            request.Headers.TryAddWithoutValidation("X-RT-MethodId", id.ToString("N"));
             return request;
         }
         private HttpRequestMessage HandleGet(string url, ParameterInfo[] parameterInfos, object[] parametersValues)

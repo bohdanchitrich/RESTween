@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
+using RESTween.Core;
 using RESTween.Core.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace RESTween.Server
@@ -12,7 +14,7 @@ namespace RESTween.Server
     internal class ApiDispatcher
     {
         private readonly object _implementation;
-        private readonly List<Endpoint> _endpoints = new();
+        private readonly Dictionary<Guid, MethodInfo> _methodsById = new();
 
         private ApiDispatcher(object implementation)
         {
@@ -31,79 +33,34 @@ namespace RESTween.Server
         {
             foreach (var method in interfaceType.GetMethods())
             {
-                if (TryParseVerbAndUrl(method, out var verb, out var url))
-                {
-                    _endpoints.Add(new Endpoint
-                    {
-                        Verb = verb,
-                        Url = url.Trim('/'),
-                        Method = method
-                    });
-                }
+               
+                    var id = MethodIdGenerator.Create(method);
+                    _methodsById[id] = method;
             }
         }
 
-        private static bool TryParseVerbAndUrl(MethodInfo method, out string verb, out string url)
-        {
-            verb = null!;
-            url = null!;
-            if (method.GetCustomAttribute<GetAttribute>() is { } g)
-            {
-                verb = "GET"; url = g.Url; return true;
-            }
-            if (method.GetCustomAttribute<PostAttribute>() is { } p)
-            {
-                verb = "POST"; url = p.Url; return true;
-            }
-            if (method.GetCustomAttribute<PutAttribute>() is { } u)
-            {
-                verb = "PUT"; url = u.Url; return true;
-            }
-            if (method.GetCustomAttribute<DeleteAttribute>() is { } d)
-            {
-                verb = "DELETE"; url = d.Url; return true;
-            }
-            return false;
-        }
-
-        private record Endpoint
-        {
-            public string Verb { get; init; } = "";
-            public string Url { get; init; } = "";
-            public MethodInfo Method { get; init; } = null!;
-        };
+      
 
         public async Task<bool> Handle(HttpContext context)
         {
-            var reqMethod = context.Request.Method.ToUpperInvariant();
-            var reqPath = context.Request.Path.Value?.Trim('/') ?? "";
-
-            var endpoint = _endpoints.FirstOrDefault(e =>
-                e.Verb == reqMethod &&
-                string.Equals(e.Url, reqPath, StringComparison.OrdinalIgnoreCase));
-
-            if (endpoint == null)
+            if (!context.Request.Headers.TryGetValue("X-RT-MethodId", out var header) ||
+                !Guid.TryParse(header, out var methodId))
                 return false;
 
-            // --- розбір аргументів (Body + Query) ---
-            var args = await BindParameters(context, endpoint.Method);
+            if (!_methodsById.TryGetValue(methodId, out var method))
+                return false;
 
-            // --- виклик методу ---
-            var taskObj = (Task?)endpoint.Method.Invoke(_implementation, args);
-            if (taskObj == null)
-                return true;
+            var args = await BindParameters(context, method);
+
+            var taskObj = (Task?)method.Invoke(_implementation, args);
+            if (taskObj == null) return true;
 
             await taskObj.ConfigureAwait(false);
-
             var resultProp = taskObj.GetType().GetProperty("Result");
             var result = resultProp?.GetValue(taskObj);
 
             context.Response.ContentType = "application/json";
-           
-            var json = System.Text.Json.JsonSerializer.Serialize(result);
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(json);
-
+            await context.Response.WriteAsync(JsonSerializer.Serialize(result));
             return true;
         }
 
@@ -112,7 +69,6 @@ namespace RESTween.Server
             var ps = method.GetParameters();
             var args = new object?[ps.Length];
 
-            // Пошук параметра тіла (Body)
             var bodyParam = ps.FirstOrDefault(p =>
                 p.GetCustomAttribute<BodyAttribute>() != null ||
                 (!p.ParameterType.IsPrimitive && p.ParameterType != typeof(string)));
@@ -120,9 +76,9 @@ namespace RESTween.Server
             object? body = null;
             if (bodyParam != null && ctx.Request.ContentLength > 0)
             {
-                body = await System.Text.Json.JsonSerializer.DeserializeAsync(
+                body = await JsonSerializer.DeserializeAsync(
                     ctx.Request.Body, bodyParam.ParameterType,
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
 
             for (int i = 0; i < ps.Length; i++)
