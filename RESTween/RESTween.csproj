@@ -10,7 +10,7 @@
 
 	<PropertyGroup>
 		<PackageId>RESTween</PackageId>
-		<Version>1.4.0</Version>
+		<Version>1.4.2</Version>
 		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
 		<Description>
