@@ -25,6 +25,22 @@ namespace RESTween
 
             return services;
         }
+        public static IServiceCollection AddApiClient<TInterface>(this IServiceCollection services, Uri baseAddress, IRequestHandler requestHandler)
+              where TInterface : class
+        {
+
+            services.AddScoped(provider =>
+            {
+             
+                var httpClient = new HttpClient();
+                httpClient.BaseAddress = baseAddress;
+                return ApiClientFactory.CreateClient<TInterface>(httpClient, requestHandler); ;
+            });
+
+            return services;
+        }
+   
+
 
         public static IServiceCollection AddApiClient<TInterface>(this IServiceCollection services, HttpClient httpClient)
                where TInterface : class
@@ -42,6 +58,39 @@ namespace RESTween
 
             return services;
         }
+
+        public static IServiceCollection AddApiClient<TInterface>(this IServiceCollection services, HttpClient httpClient,IRequestHandler requestHandler)
+             where TInterface : class
+        {
+
+            services.AddScoped(provider =>
+            {
+                return ApiClientFactory.CreateClient<TInterface>(httpClient, requestHandler); ;
+            });
+
+            return services;
+        }
+
+        public static IServiceCollection AddApiClient<TApi, THandler>(
+    this IServiceCollection services,
+    Uri baseAddress)
+    where TApi : class
+    where THandler : class, IRequestHandler
+        {
+            services.AddScoped<TApi>(sp =>
+            {
+                var handler = sp.GetRequiredService<THandler>();
+
+                var httpClient = new HttpClient();
+
+                httpClient.BaseAddress = baseAddress;
+
+                return ApiClientFactory.CreateClient<TApi>(httpClient, handler);
+            });
+
+            return services;
+        }
+
 
     }
 }

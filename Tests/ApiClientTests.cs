@@ -1,13 +1,14 @@
 ﻿
-using RESTween.Attributes;
-using NUnit.Framework;
-using System.Reflection;
 using Moq;
-using RESTween;
-using RESTween.Handlers;
+using NUnit.Framework;
 using NUnit.Framework.Legacy;
-using System.Text.Json;
+using RESTween;
+using RESTween.Attributes;
+using RESTween.Handlers;
 using System.Net.Http;
+using System.Reflection;
+using System.Text.Json;
+using System.Threading.Tasks;
 namespace Tests
 {
     [TestFixture]
@@ -51,7 +52,7 @@ namespace Tests
         public void GetQueryTest()
         {
             // Arrange
-            var arguments = new object[] { 123};
+            var arguments = new object[] { 123 };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQuery));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -70,7 +71,7 @@ namespace Tests
         public void GetQueryTwoTest()
         {
             // Arrange
-            var arguments = new object[] { 123 ,"testParameter"};
+            var arguments = new object[] { 123, "testParameter" };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetQueryTwo));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -152,7 +153,7 @@ namespace Tests
         }
 
         [Get(baseUrl)]
-        public void GetQueryAttribute([Query("parameterQuery")]int parameter)
+        public void GetQueryAttribute([Query("parameterQuery")] int parameter)
         {
         }
         [Test]
@@ -171,7 +172,7 @@ namespace Tests
         }
 
         [Get(baseUrl)]
-        public void GetQueryTwoAttribute([Query("queryAttribute1")]int parameter1, [Query("queryAttribute2")] string parameter2)
+        public void GetQueryTwoAttribute([Query("queryAttribute1")] int parameter1, [Query("queryAttribute2")] string parameter2)
         {
         }
         [Test]
@@ -190,7 +191,7 @@ namespace Tests
         }
 
         [Get(baseUrl)]
-        public void GetQueryTwoParametersOneWithAttribute( int parameter1, [Query("queryAttribute2")] string parameter2)
+        public void GetQueryTwoParametersOneWithAttribute(int parameter1, [Query("queryAttribute2")] string parameter2)
         {
         }
         [Test]
@@ -211,7 +212,7 @@ namespace Tests
 
 
 
-        [Get(baseUrl+"/{parameter}")]
+        [Get(baseUrl + "/{parameter}")]
         public void GetUrlParameter(int parameter)
         {
         }
@@ -253,14 +254,14 @@ namespace Tests
 
 
         [Get(baseUrl + "/{parameter2}/{parameter1}")]
-        public void GetTwoReverseUrlParameter(int parameter1,int parameter2)
+        public void GetTwoReverseUrlParameter(int parameter1, int parameter2)
         {
         }
         [Test]
         public void GetTwoReversUrlParameterTest()
         {
             // Arrange
-            var arguments = new object[] { 1,2 };
+            var arguments = new object[] { 1, 2 };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetTwoReverseUrlParameter));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -273,14 +274,14 @@ namespace Tests
 
 
         [Get(baseUrl + "/{parameter}")]
-        public void GetUrlParameterWithQuery(int parameter,string query)
+        public void GetUrlParameterWithQuery(int parameter, string query)
         {
         }
         [Test]
         public void GetUrlParameterWithQueryTest()
         {
             // Arrange
-            var arguments = new object[] { 123,"queryTest" };
+            var arguments = new object[] { 123, "queryTest" };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUrlParameterWithQuery));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -293,14 +294,14 @@ namespace Tests
 
 
         [Get(baseUrl + "/{parameter}")]
-        public void GetReversUrlParameterWithQuery(string query,int parameter)
+        public void GetReversUrlParameterWithQuery(string query, int parameter)
         {
         }
         [Test]
         public void GetReversUrlParameterWithQueryTest()
         {
             // Arrange
-            var arguments = new object[] { "queryTest",123};
+            var arguments = new object[] { "queryTest", 123 };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetReversUrlParameterWithQuery));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -313,14 +314,14 @@ namespace Tests
 
 
         [Get(baseUrl + "/{parameter}")]
-        public void GetUrlParameterWithTwoQuery(string query2,int parameter, string query1)
+        public void GetUrlParameterWithTwoQuery(string query2, int parameter, string query1)
         {
         }
         [Test]
         public void GetUrlParameterWithTwoQueryTest()
         {
             // Arrange
-            var arguments = new object[] {"query2Test" ,123, "query1Test" };
+            var arguments = new object[] { "query2Test", 123, "query1Test" };
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetUrlParameterWithTwoQuery));
             var parameters = methodInfo.GetParameters();
             // Act
@@ -332,7 +333,7 @@ namespace Tests
         }
 
         [Get(baseUrl + "/{parameter}")]
-        public void GetUrlParameterWithTwoQueryAndWithAttribute([Query("queryAttribute")]string query2, int parameter, string query1)
+        public void GetUrlParameterWithTwoQueryAndWithAttribute([Query("queryAttribute")] string query2, int parameter, string query1)
         {
         }
         [Test]
@@ -348,6 +349,49 @@ namespace Tests
             ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
             ClassicAssert.AreEqual($"{baseUrl}/123?queryAttribute=query2Test&query1=query1Test", request.RequestUri.ToString());
 
+        }
+
+        [Get($"{baseUrl}/test")]
+        public void GetMultiQuery(
+        [Query(collectionFormat: CollectionFormat.Multi)] string[] countryCodes,
+        [Query] string name,
+        [Query(collectionFormat: CollectionFormat.Multi)] string[] divisionCategories,
+        [Query(collectionFormat: CollectionFormat.Multi)] string[] statuses,
+        [Query] int limit = 10
+    )
+        {
+
+        }
+
+        [Test]
+        public void Get_MultiQuery_Test()
+        {
+
+            var arguments = new object[]
+           {
+            new[] { "UA" },
+            "Kyiv",                  
+            new[] { "PostBranch" }, 
+            new[] { "Working" },     
+            10                       
+           };
+            MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(GetMultiQuery));
+            var parameters = methodInfo.GetParameters();
+            // Act
+            HttpRequestMessage request = _apiClient.CreateRequest(methodInfo, parameters, arguments);
+            // ClassicAssert
+            ClassicAssert.AreEqual(HttpMethod.Get, request.Method);
+
+            ClassicAssert.AreEqual(
+                $"{baseUrl}/test" +
+                "?countryCodes[]=UA" +
+                "&name=Kyiv" +
+                "&divisionCategories[]=PostBranch" +
+                "&statuses[]=Working" +
+                "&limit=10",
+                request.RequestUri.ToString()
+            );
+          
         }
 
         #endregion
@@ -382,10 +426,10 @@ namespace Tests
         public void PostBodyTest()
         {
             // Arrange
-          
+
 
             var bodyContent = new { Name = "John", Age = 30 };
-            var arguments = new object[] { bodyContent};
+            var arguments = new object[] { bodyContent };
 
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostBody));
             var parameters = methodInfo.GetParameters();
@@ -456,7 +500,7 @@ namespace Tests
             var jsonContent = request.Content.ReadAsStringAsync().Result;
             ClassicAssert.AreEqual(JsonSerializer.Serialize(bodyContent), jsonContent);
         }
-        [Post(baseUrl+"/{param1}")]
+        [Post(baseUrl + "/{param1}")]
         public void PostBodyWithUrlParameter([Body] object body, int param1)
         {
         }
@@ -538,7 +582,7 @@ namespace Tests
         }
 
         [Post(baseUrl + "/{param2}")]
-        public void PostBodyWithUrlParameterAndQuery([Query("queryParam")]string param1,[Body] object body, int param2)
+        public void PostBodyWithUrlParameterAndQuery([Query("queryParam")] string param1, [Body] object body, int param2)
         {
         }
 
@@ -549,7 +593,7 @@ namespace Tests
 
 
             var bodyContent = new { Name = "John", Age = 30 };
-            var arguments = new object[] { "query",bodyContent, 123 };
+            var arguments = new object[] { "query", bodyContent, 123 };
 
             MethodInfo methodInfo = typeof(ApiClientTests).GetMethod(nameof(PostBodyWithUrlParameterAndQuery));
             var parameters = methodInfo.GetParameters();
@@ -566,7 +610,7 @@ namespace Tests
 
 
         [Post(baseUrl)]
-        public void PostQuery([Query("parameter")]int parameter)
+        public void PostQuery([Query("parameter")] int parameter)
         {
         }
         [Test]
@@ -807,6 +851,6 @@ namespace Tests
 
 
         #endregion
-      
+
     }
 }

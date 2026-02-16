@@ -6,20 +6,28 @@ using System.Threading.Tasks;
 
 namespace RESTween.Attributes
 {
+    public enum CollectionFormat
+    {
+        Default,
+        Multi
+    }
+
+
     [AttributeUsage(AttributeTargets.Parameter)]
     public class QueryAttribute : Attribute
     {
         public string? Name { get; }
+        public CollectionFormat CollectionFormat { get; }
 
-        public QueryAttribute(string name)
+        public QueryAttribute(
+            string? name = null,
+            CollectionFormat collectionFormat = CollectionFormat.Default)
         {
             Name = name;
-        }
-        public QueryAttribute()
-        {
-
+            CollectionFormat = collectionFormat;
         }
     }
+
 
     [AttributeUsage(AttributeTargets.Parameter)]
     public class RouteAttribute : Attribute

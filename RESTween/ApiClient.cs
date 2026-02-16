@@ -1,17 +1,14 @@
-﻿using Castle.DynamicProxy;
-using RESTween.Attributes;
+﻿using RESTween.Attributes;
 using RESTween.Handlers;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Reflection;
-using System.Runtime.InteropServices;
+using System.Reflection.Metadata;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
@@ -25,54 +22,54 @@ namespace RESTween
         private readonly IRequestHandler _requestHandler;
         private readonly HttpClient _httpClient;
 
-        public ApiClient(IRequestHandler requestHandler, HttpClient httpClient)
+        internal ApiClient(IRequestHandler requestHandler, HttpClient httpClient)
         {
             _requestHandler = requestHandler ?? throw new ArgumentNullException(nameof(requestHandler));
-            _httpClient = httpClient;
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
+
 
         public async Task<T> CallAsync<T>(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            HttpRequestMessage request = CreateRequest(method, parameterInfos, parameters);
-            return await _requestHandler.HandleRequestAsync<T>(request, _httpClient);
+            var request = CreateRequest(method, parameterInfos, parameters);
+            var attributes = method
+                            .GetCustomAttributes<Attribute>(true)
+                            .ToList();
+
+            var context = new RequestContext(request, attributes);
+
+
+
+            return await _requestHandler.HandleRequestAsync<T>(context, _httpClient);
         }
 
         public async Task CallAsync(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
-            HttpRequestMessage request = CreateRequest(method, parameterInfos, parameters);
-            await _requestHandler.HandleRequestAsync(request, _httpClient);
+            var request = CreateRequest(method, parameterInfos, parameters);
+            var attributes = method
+                     .GetCustomAttributes<Attribute>(true)
+                     .ToList();
+
+            var context = new RequestContext(request, attributes);
+            await _requestHandler.HandleRequestAsync(context, _httpClient);
         }
-
-
-        // ВАЖЛИВО: тепер передаємо methodInfo в Handle*
+        #region CreateRequest
         public HttpRequestMessage CreateRequest(MethodInfo method, ParameterInfo[] parameterInfos, object[] parameters)
         {
             if (method.GetCustomAttribute<GetAttribute>() is GetAttribute getAttr)
-                return HandleGet(getAttr.Url, method, parameterInfos, parameters);
+                return BuildRequest(HttpMethod.Get, getAttr.Url, method, parameterInfos, parameters, complexNoAttrAsBody: false);
 
             if (method.GetCustomAttribute<PostAttribute>() is PostAttribute postAttr)
-                return HandlePost(postAttr.Url, method, parameterInfos, parameters);
+                return BuildRequest(HttpMethod.Post, postAttr.Url, method, parameterInfos, parameters, complexNoAttrAsBody: true);
 
             if (method.GetCustomAttribute<PutAttribute>() is PutAttribute putAttr)
-                return HandlePut(putAttr.Url, method, parameterInfos, parameters);
+                return BuildRequest(HttpMethod.Put, putAttr.Url, method, parameterInfos, parameters, complexNoAttrAsBody: true);
 
             if (method.GetCustomAttribute<DeleteAttribute>() is DeleteAttribute deleteAttr)
-                return HandleDelete(deleteAttr.Url, method, parameterInfos, parameters);
+                return BuildRequest(HttpMethod.Delete, deleteAttr.Url, method, parameterInfos, parameters, complexNoAttrAsBody: false);
 
             throw new NotImplementedException("Only GET, POST, PUT, and DELETE methods are supported.");
         }
-
-        private HttpRequestMessage HandleGet(string url, MethodInfo methodInfo, ParameterInfo[] parameterInfos, object[] parametersValues)
-            => BuildRequest(HttpMethod.Get, url, methodInfo, parameterInfos, parametersValues, complexNoAttrAsBody: false);
-
-        private HttpRequestMessage HandlePost(string url, MethodInfo methodInfo, ParameterInfo[] parameterInfos, object[] parametersValues)
-            => BuildRequest(HttpMethod.Post, url, methodInfo, parameterInfos, parametersValues, complexNoAttrAsBody: true);
-
-        private HttpRequestMessage HandlePut(string url, MethodInfo methodInfo, ParameterInfo[] parameterInfos, object[] parametersValues)
-            => BuildRequest(HttpMethod.Put, url, methodInfo, parameterInfos, parametersValues, complexNoAttrAsBody: true);
-
-        private HttpRequestMessage HandleDelete(string url, MethodInfo methodInfo, ParameterInfo[] parameterInfos, object[] parametersValues)
-            => BuildRequest(HttpMethod.Delete, url, methodInfo, parameterInfos, parametersValues, complexNoAttrAsBody: false);
 
         private HttpRequestMessage BuildRequest(
             HttpMethod httpMethod,
@@ -84,14 +81,12 @@ namespace RESTween
         {
             object? body = null;
 
-            var queries = new Dictionary<string, object?>(StringComparer.Ordinal);
+            var queries = new List<QueryItem>();
             var routes = new Dictionary<string, object?>(StringComparer.Ordinal);
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            // 1) headers з атрибутів методу
             CollectMethodHeaders(methodInfo, headers);
 
-            // 2) розбір параметрів
             for (int i = 0; i < parametersValues.Length; i++)
             {
                 var value = parametersValues[i];
@@ -99,20 +94,18 @@ namespace RESTween
                 var paramName = info.Name;
                 if (paramName == null) continue;
 
-                // 2.1) Header параметр
+                // Header
                 var headerAttr = info.GetCustomAttribute<HeaderAttribute>();
                 if (headerAttr != null)
                 {
                     var key = headerAttr.Name ?? paramName;
                     if (!string.IsNullOrWhiteSpace(key) && value != null)
-                    {
-                        // параметр перезаписує метод-значення (пріоритет)
                         headers[key] = FormatHeaderValue(value);
-                    }
+
                     continue;
                 }
 
-                // 2.2) Route
+                // Route
                 var routeAttr = info.GetCustomAttribute<RouteAttribute>();
                 if (routeAttr != null)
                 {
@@ -131,24 +124,32 @@ namespace RESTween
                     continue;
                 }
 
-                // 2.3) Query
+                // Query
                 var queryAttr = info.GetCustomAttribute<QueryAttribute>();
                 if (queryAttr != null)
                 {
                     var queryName = queryAttr.Name ?? paramName;
-
-                    if (ParameterTypeChecker.IsSimpleType(info.ParameterType))
+                    // scalar OR collection -> AddQuery
+                    if (ParameterTypeChecker.IsSimpleType(info.ParameterType) || IsQueryCollection(info.ParameterType))
                     {
-                        AddQuery(queries, queryName, value, url);
+                        AddQuery(
+                            queries,
+                            queryName,
+                            value,
+                            url,
+                            queryAttr.CollectionFormat
+                        );
                     }
                     else
                     {
+                        // complex object -> expand props into query
                         ExpandObjectToQuery(queries, value, url);
                     }
+
                     continue;
                 }
 
-                // 2.4) Body (тільки якщо явно позначили)
+                // Body
                 var bodyAttr = info.GetCustomAttribute<BodyAttribute>();
                 if (bodyAttr != null)
                 {
@@ -159,12 +160,12 @@ namespace RESTween
                     continue;
                 }
 
-                // 2.5) Без атрибутів — дефолтна логіка
+                // No attributes: default routing
                 if (!HasAttributes(info))
                 {
                     if (ParameterTypeChecker.IsSimpleType(info.ParameterType))
                     {
-                        // simple: або route (якщо є {name}), або query
+                        // simple: route if {name} exists, otherwise query
                         if (url.Contains($"{{{paramName}}}"))
                         {
                             if (value == null)
@@ -177,13 +178,32 @@ namespace RESTween
                         }
                         else
                         {
-                            AddQuery(queries, paramName, value, url);
+                            AddQuery(
+                                queries,
+                                paramName,
+                                value,
+                                url,
+                                CollectionFormat.Default
+                            );
                         }
 
                         continue;
                     }
 
-                    // complex без атрибутів:
+                    // collection without attributes: treat as query (default)
+                    if (IsQueryCollection(info.ParameterType))
+                    {
+                        AddQuery(
+                            queries,
+                            paramName,
+                            value,
+                            url,
+                            CollectionFormat.Default
+                        );
+                        continue;
+                    }
+
+                    // complex without attributes
                     if (complexNoAttrAsBody)
                     {
                         if (body != null)
@@ -199,36 +219,49 @@ namespace RESTween
                     continue;
                 }
 
-                // якщо сюди дійшли — атрибут(и) є, але не підтримані/не розпізнані
                 throw new Exception($"Fail to parse parameter {paramName} in {url}");
             }
 
-            // 3) застосувати routes
+            // Apply routes
             foreach (var rp in routes)
             {
-                url = url.Replace($"{{{rp.Key}}}", HttpUtility.UrlEncode(rp.Value?.ToString() ?? string.Empty));
+                url = url.Replace(
+                    $"{{{rp.Key}}}",
+                    HttpUtility.UrlEncode(rp.Value?.ToString() ?? string.Empty)
+                );
             }
 
-            // 4) зібрати query string
-            var query = BuildQueryString(queries);
-            if (!string.IsNullOrEmpty(query))
-                url = AppendQuery(url, query);
+            // Build query string
+            var queryString = BuildQueryString(queries);
+            if (!string.IsNullOrEmpty(queryString))
+                url = AppendQuery(url, queryString);
 
-            // 5) створити HttpRequestMessage
+            // Create request
             var request = new HttpRequestMessage(httpMethod, url);
+
+            // For strictness: forbid body on GET/DELETE unless you explicitly want to allow it
+            if ((httpMethod == HttpMethod.Get || httpMethod == HttpMethod.Delete) && body != null)
+                throw new Exception($"Request {url} with method {httpMethod} cannot contain body.");
 
             if (body != null)
             {
                 request.Content = new StringContent(
                     JsonSerializer.Serialize(body),
                     Encoding.UTF8,
-                    "application/json");
+                    "application/json"
+                );
             }
 
-            // 6) застосувати headers
             ApplyHeaders(request, headers, url);
-
             return request;
+        }
+
+        private static bool IsQueryCollection(Type type)
+        {
+            if (type == typeof(string))
+                return false;
+
+            return typeof(IEnumerable).IsAssignableFrom(type);
         }
 
         private static void CollectMethodHeaders(MethodInfo methodInfo, Dictionary<string, string> headers)
@@ -267,7 +300,6 @@ namespace RESTween
                     if (request.Content == null)
                         throw new Exception($"Content header '{key}' specified for {url}, but request has no body/content.");
 
-                    // Content-Type краще задавати явно
                     if (key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
                     {
                         request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(value);
@@ -285,21 +317,30 @@ namespace RESTween
 
         private static bool IsContentHeader(string headerName)
         {
-            // мінімально необхідне (можна розширити)
             return headerName.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)
                    || headerName.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)
                    || headerName.Equals("Content-Length", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static void AddQuery(Dictionary<string, object?> queries, string key, object? value, string url)
+        private static void AddQuery(
+            List<QueryItem> queries,
+            string key,
+            object? value,
+            string url,
+            CollectionFormat collectionFormat)
         {
-            if (queries.ContainsKey(key))
-                throw new Exception($"{key} duplicated in {url}");
+            if (value == null) return;
 
-            queries[key] = value;
+            if (collectionFormat == CollectionFormat.Default
+                && queries.Any(q => q.Name.Equals(key, StringComparison.Ordinal)))
+            {
+                throw new Exception($"{key} duplicated in {url}");
+            }
+
+            queries.Add(new QueryItem(key, value, collectionFormat));
         }
 
-        private static void ExpandObjectToQuery(Dictionary<string, object?> queries, object? obj, string url)
+        private static void ExpandObjectToQuery(List<QueryItem> queries, object? obj, string url)
         {
             if (obj == null) return;
 
@@ -315,31 +356,40 @@ namespace RESTween
                 var val = prop.GetValue(obj);
                 if (val == null) continue;
 
-                if (queries.ContainsKey(key))
+                if (queries.Any(q => q.Name.Equals(key, StringComparison.Ordinal)))
                     throw new Exception($"{key} duplicated in {url}");
 
-                queries[key] = val;
+                queries.Add(new QueryItem(key, val, CollectionFormat.Default));
             }
         }
 
-        private static string BuildQueryString(Dictionary<string, object?> queries)
+        private static string BuildQueryString(List<QueryItem> queries)
         {
             var parts = new List<string>();
 
-            foreach (var (key, val) in queries)
+            foreach (var q in queries)
             {
-                if (val == null) continue;
+                if (q.Value == null) continue;
 
-                if (val is string || val is not IEnumerable enumerable)
+                if (q.Value is string || q.Value is not IEnumerable enumerable)
                 {
-                    parts.Add($"{key}={HttpUtility.UrlEncode(FormatQueryValue(val))}");
+                    parts.Add($"{q.Name}={HttpUtility.UrlEncode(FormatQueryValue(q.Value))}");
                     continue;
                 }
 
                 foreach (var item in enumerable)
                 {
                     if (item == null) continue;
-                    parts.Add($"{key}={HttpUtility.UrlEncode(FormatQueryValue(item))}");
+
+                    var name = q.Name;
+
+                    if (q.CollectionFormat == CollectionFormat.Multi)
+                    {
+                        if (!name.EndsWith("[]", StringComparison.Ordinal))
+                            name += "[]";
+                    }
+
+                    parts.Add($"{name}={HttpUtility.UrlEncode(FormatQueryValue(item))}");
                 }
             }
 
@@ -355,7 +405,7 @@ namespace RESTween
         {
             return value switch
             {
-                DateTime dt => dt.ToString("r"), 
+                DateTime dt => dt.ToString("r"),
                 _ => value.ToString() ?? string.Empty
             };
         }
@@ -366,12 +416,8 @@ namespace RESTween
                || parameterInfo.IsDefined(typeof(BodyAttribute), inherit: true)
                || parameterInfo.IsDefined(typeof(HeaderAttribute), inherit: true);
 
-
         private static string FormatQueryValue(object value)
         {
-            if (value == null)
-                return string.Empty;
-
             switch (value)
             {
                 case bool b:
@@ -382,19 +428,11 @@ namespace RESTween
                         ? dt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)
                         : dt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
-#if NET6_0_OR_GREATER
-                case DateOnly d:
-                    return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-
-                case TimeOnly t:
-                    return t.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-#endif
-
                 case Enum e:
                     return GetEnumValue(e);
 
                 case IFormattable f:
-                    return f.ToString(null, CultureInfo.InvariantCulture);
+                    return f.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty;
 
                 default:
                     return value.ToString() ?? string.Empty;
@@ -411,11 +449,9 @@ namespace RESTween
             var attr = member?.GetCustomAttribute<EnumMemberAttribute>();
             return attr?.Value ?? value.ToString();
         }
+
+        private sealed record QueryItem(string Name, object Value, CollectionFormat CollectionFormat);
+        #endregion
+       
     }
-
-
-
-
 }
-
-

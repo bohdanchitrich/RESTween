@@ -11,8 +11,8 @@ namespace RESTween.Handlers
 {
     public interface IRequestHandler
     {
-        public abstract Task<T> HandleRequestAsync<T>(HttpRequestMessage request, HttpClient httpClient);
-        public abstract Task HandleRequestAsync(HttpRequestMessage request, HttpClient httpClient);
+        public abstract Task<T> HandleRequestAsync<T>(RequestContext context, HttpClient httpClient);
+        public abstract Task HandleRequestAsync(RequestContext context, HttpClient httpClient);
 
     }
 

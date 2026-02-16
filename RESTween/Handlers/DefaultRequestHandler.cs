@@ -6,16 +6,16 @@ namespace RESTween.Handlers
 {
     public sealed class DefaultRequestHandler : IRequestHandler
     {
-        public async Task<T> HandleRequestAsync<T>(HttpRequestMessage request, HttpClient httpClient)
+        public async Task<T> HandleRequestAsync<T>(RequestContext context, HttpClient httpClient)
         {
-            var response = await httpClient.SendAsync(request);
+            var response = await httpClient.SendAsync(context.Request);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<T>() ?? default;
+            return await response.Content.ReadFromJsonAsync<T>() ?? default; ;
         }
 
-        public async Task HandleRequestAsync(HttpRequestMessage request, HttpClient httpClient)
+        public async Task HandleRequestAsync(RequestContext context, HttpClient httpClient)
         {
-            var response = await httpClient.SendAsync(request);
+            var response = await httpClient.SendAsync(context.Request);
             response.EnsureSuccessStatusCode();
         }
     }
