@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -12,6 +13,7 @@ using System.Reflection.Metadata;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -80,7 +82,14 @@ namespace RESTween
             bool complexNoAttrAsBody)
         {
             object? body = null;
+            var isMultipart = methodInfo.GetCustomAttribute<MultipartAttribute>() != null;
 
+            MultipartFormDataContent? multipart = null;
+
+            if (isMultipart)
+            {
+                multipart = new MultipartFormDataContent();
+            }
             var queries = new List<QueryItem>();
             var routes = new Dictionary<string, object?>(StringComparer.Ordinal);
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -93,6 +102,60 @@ namespace RESTween
                 var info = parameterInfos[i];
                 var paramName = info.Name;
                 if (paramName == null) continue;
+
+
+                if (multipart != null)
+                {
+                    var name = paramName;
+
+                    if (value == null)
+                        continue;
+
+                    // Stream
+                    if (value is Stream stream)
+                    {
+                        var content = new StreamContent(stream);
+                        multipart.Add(content, name, "file");
+                        continue;
+                    }
+
+                    // byte[]
+                    if (value is byte[] bytes)
+                    {
+                        var content = new ByteArrayContent(bytes);
+                        multipart.Add(content, name, "file");
+                        continue;
+                    }
+
+                    // FileInfo
+                    if (value is FileInfo fileInfo)
+                    {
+                        var streamFileInfo = fileInfo.OpenRead();
+                        var content = new StreamContent(streamFileInfo);
+
+                        multipart.Add(content, name, fileInfo.Name);
+                        continue;
+                    }
+
+                    // прості типи
+                    if (ParameterTypeChecker.IsSimpleType(info.ParameterType))
+                    {
+                        multipart.Add(new StringContent(value.ToString()!), name);
+                        continue;
+                    }
+
+                    // складний DTO → JSON
+                    var json = JsonSerializer.Serialize(value);
+
+                    multipart.Add(
+                        new StringContent(json, Encoding.UTF8, "application/json"),
+                        name
+                    );
+
+                    continue;
+                }
+
+
 
                 // Header
                 var headerAttr = info.GetCustomAttribute<HeaderAttribute>();
@@ -242,7 +305,12 @@ namespace RESTween
             // For strictness: forbid body on GET/DELETE unless you explicitly want to allow it
             if ((httpMethod == HttpMethod.Get || httpMethod == HttpMethod.Delete) && body != null)
                 throw new Exception($"Request {url} with method {httpMethod} cannot contain body.");
-
+            if (multipart != null)
+            {
+                request.Content = multipart;
+                ApplyHeaders(request, headers, url);
+                return request;
+            }
             if (body != null)
             {
                 request.Content = new StringContent(
@@ -344,17 +412,19 @@ namespace RESTween
         {
             if (obj == null) return;
 
-            var actualType = obj.GetType();
-            var props = actualType
+            var props = obj.GetType()
                 .GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.GetMethod?.IsPublic == true || p.GetMethod?.IsAssembly == true)
                 .ToArray();
 
             foreach (var prop in props)
             {
-                var key = prop.Name;
                 var val = prop.GetValue(obj);
                 if (val == null) continue;
+
+                var json = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name;
+
+                var key =  json ?? prop.Name;
 
                 if (queries.Any(q => q.Name.Equals(key, StringComparison.Ordinal)))
                     throw new Exception($"{key} duplicated in {url}");
