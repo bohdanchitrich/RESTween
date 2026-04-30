@@ -231,6 +231,40 @@ namespace Tests
             ClassicAssert.AreEqual("https://api.example.com/factory", handler.LastRequest!.RequestUri!.ToString());
         }
 
+        [Cache(60)]
+        [RateLimit(10, 30, "metadata")]
+        [Get(BaseUrl)]
+        public void MetadataAttributes()
+        {
+        }
+
+        [Test]
+        public async Task ClientOnlyAttributes_AreOwnedByClientPackageAndAvailableInRequestContext()
+        {
+            ClassicAssert.AreEqual(typeof(ApiClient).Assembly, typeof(HeadersAttribute).Assembly);
+            ClassicAssert.AreEqual(typeof(ApiClient).Assembly, typeof(MultipartAttribute).Assembly);
+            ClassicAssert.AreEqual(typeof(ApiClient).Assembly, typeof(CacheAttribute).Assembly);
+            ClassicAssert.AreEqual(typeof(ApiClient).Assembly, typeof(RateLimitAttribute).Assembly);
+            ClassicAssert.IsNull(typeof(GetAttribute).Assembly.GetType("RESTween.Attributes.HeadersAttribute"));
+            ClassicAssert.IsNull(typeof(GetAttribute).Assembly.GetType("RESTween.Attributes.MultipartAttribute"));
+            ClassicAssert.IsNull(typeof(GetAttribute).Assembly.GetType("RESTween.Attributes.CacheAttribute"));
+            ClassicAssert.IsNull(typeof(GetAttribute).Assembly.GetType("RESTween.Attributes.RateLimitAttribute"));
+
+            var handler = new CaptureRequestHandler();
+            var apiClient = new ApiClient(handler, new HttpClient());
+            var method = GetType().GetMethod(nameof(MetadataAttributes))!;
+
+            await apiClient.CallAsync(method, method.GetParameters(), Array.Empty<object>());
+
+            var cache = handler.LastContext!.GetAttribute<CacheAttribute>()!;
+            var rateLimit = handler.LastContext!.GetAttribute<RateLimitAttribute>()!;
+
+            ClassicAssert.AreEqual(60, cache.DurationSeconds);
+            ClassicAssert.AreEqual(10, rateLimit.MaxRequests);
+            ClassicAssert.AreEqual(30, rateLimit.TimeWindowSeconds);
+            ClassicAssert.AreEqual("metadata", rateLimit.Key);
+        }
+
         private HttpRequestMessage CreateRequest(string methodName, params object?[] arguments)
         {
             var method = GetType().GetMethod(methodName)!;
@@ -263,14 +297,18 @@ namespace Tests
         {
             public HttpRequestMessage? LastRequest { get; private set; }
 
+            public RequestContext? LastContext { get; private set; }
+
             public Task<T> HandleRequestAsync<T>(RequestContext context, HttpClient httpClient)
             {
+                LastContext = context;
                 LastRequest = context.Request;
                 return Task.FromResult(default(T)!);
             }
 
             public Task HandleRequestAsync(RequestContext context, HttpClient httpClient)
             {
+                LastContext = context;
                 LastRequest = context.Request;
                 return Task.CompletedTask;
             }

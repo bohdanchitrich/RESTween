@@ -105,6 +105,113 @@ namespace RESTween.Server.Tests
             ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
         }
 
+        [Test]
+        public void GeneratesControllerFromAspNetCoreHttpAttributes()
+        {
+            var source = """
+                using Microsoft.AspNetCore.Authorization;
+                using Microsoft.AspNetCore.Mvc;
+                using RESTween.Attributes;
+                using RESTween.Server;
+                using System.Threading.Tasks;
+                using RestweenRouteAttribute = RESTween.Attributes.RouteAttribute;
+
+                namespace Demo;
+
+                public sealed class LoginDto
+                {
+                    public string? Email { get; set; }
+                }
+
+                public sealed class LoginResult
+                {
+                    public string? Token { get; set; }
+                }
+
+                [RestweenController]
+                public interface IUserApi
+                {
+                    [AllowAnonymous]
+                    [HttpPost("/login")]
+                    Task<LoginResult> LoginAsync(LoginDto dto);
+
+                    [Authorize(Roles = "Admin", AuthenticationSchemes = "Bearer")]
+                    [HttpGet("/users/{id}")]
+                    Task<string> GetUserAsync([RestweenRoute] int id);
+
+                    [Authorize(Policy = "Users.Write")]
+                    [HttpPut("/users/{id}")]
+                    Task<string> UpdateUserAsync([RestweenRoute] int id, LoginDto dto);
+
+                    [HttpDelete("/users/{id}")]
+                    Task DeleteUserAsync([RestweenRoute] int id);
+                }
+                """;
+
+            var result = RunGenerator(source);
+            var generatedController = result.GeneratedSources.Single(text => text.Contains("class UserApiController"));
+
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Authorization.AllowAnonymous]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\", AuthenticationSchemes = \"Bearer\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Authorization.Authorize(Policy = \"Users.Write\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpPost(\"/login\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpGet(\"/users/{id}\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpPut(\"/users/{id}\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpDelete(\"/users/{id}\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.FromBody] global::Demo.LoginDto dto"));
+            ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
+        }
+
+        [Test]
+        public void GeneratesParameterlessAspNetCoreHttpAttributeWhenTemplateIsMissing()
+        {
+            var source = """
+                using Microsoft.AspNetCore.Mvc;
+                using RESTween.Server;
+
+                namespace Demo;
+
+                [RestweenController]
+                public interface IHealthApi
+                {
+                    [HttpGet]
+                    string Ping();
+                }
+                """;
+
+            var result = RunGenerator(source);
+            var generatedController = result.GeneratedSources.Single(text => text.Contains("class HealthApiController"));
+
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpGet]"));
+            ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
+        }
+
+        [Test]
+        public void ReportsDiagnosticWhenMethodHasMultipleHttpAttributes()
+        {
+            var source = """
+                using Microsoft.AspNetCore.Mvc;
+                using RESTween.Attributes;
+                using RESTween.Server;
+
+                namespace Demo;
+
+                [RestweenController]
+                public interface IUserApi
+                {
+                    [Get("/users")]
+                    [HttpGet("/mvc-users")]
+                    string GetUsers();
+                }
+                """;
+
+            var result = RunGenerator(source);
+            var diagnostic = result.Diagnostics.SingleOrDefault(d => d.Id == "RESTWEEN001");
+
+            ClassicAssert.IsNotNull(diagnostic);
+            ClassicAssert.AreEqual(DiagnosticSeverity.Error, diagnostic!.Severity);
+        }
+
         private static GeneratorRunResult RunGenerator(string source)
         {
             var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
@@ -142,7 +249,8 @@ namespace RESTween.Server.Tests
                 .Concat(new[]
                 {
                     MetadataReference.CreateFromFile(typeof(RESTween.Attributes.GetAttribute).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(Microsoft.AspNetCore.Mvc.ControllerBase).Assembly.Location)
+                    MetadataReference.CreateFromFile(typeof(Microsoft.AspNetCore.Mvc.ControllerBase).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute).Assembly.Location)
                 })
                 .GroupBy(reference => reference.Display)
                 .Select(group => group.First())

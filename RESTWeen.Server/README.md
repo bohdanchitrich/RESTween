@@ -15,6 +15,8 @@ Your business logic stays in a handler class that implements the interface. The 
 - `[RestweenController]` opt-in attribute generated into the consuming project.
 - ASP.NET Core controller generation for interfaces marked with `[RestweenController]`.
 - Mapping from RESTween HTTP attributes to ASP.NET Core MVC attributes.
+- Support for standard ASP.NET Core `[HttpGet]`, `[HttpPost]`, `[HttpPut]`, and `[HttpDelete]` attributes on API interfaces.
+- Passthrough for standard `[AllowAnonymous]` and `[Authorize]` on API methods.
 - Parameter binding generation for route, query, body, and header values.
 - Handler-first server design: generated controllers inject the API interface and call the registered implementation.
 - A dependency on `RESTween.Core`, so shared RESTween attributes are available.
@@ -54,7 +56,30 @@ public interface IUserApi
 
 Only interfaces marked with `[RestweenController]` are used by the generator.
 
-Methods without `[Get]`, `[Post]`, `[Put]`, or `[Delete]` are ignored.
+Methods without a RESTween HTTP attribute or ASP.NET Core HTTP attribute are ignored.
+
+You can also use standard ASP.NET Core HTTP and authorization attributes on methods:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using RESTween.Attributes;
+using RESTween.Server;
+
+[RestweenController]
+public interface IAccountApi
+{
+    [AllowAnonymous]
+    [HttpPost("/login")]
+    Task<LoginResult> LoginAsync(LoginDto dto);
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("/users/{id}")]
+    Task<UserDto> GetUserAsync([Route] int id);
+}
+```
+
+Standard ASP.NET Core authorization attributes cannot be placed on interfaces because ASP.NET Core declares them for classes and methods. Put them on API methods, or use normal ASP.NET Core policies/filters around the generated controllers.
 
 ## Implement the Handler
 
@@ -128,6 +153,26 @@ HTTP method attributes are converted to ASP.NET Core MVC attributes:
 [Delete("/path")] -> [HttpDelete("/path")]
 ```
 
+Standard ASP.NET Core HTTP method attributes are accepted too:
+
+```text
+[HttpGet("/path")]    -> [HttpGet("/path")]
+[HttpPost("/path")]   -> [HttpPost("/path")]
+[HttpPut("/path")]    -> [HttpPut("/path")]
+[HttpDelete("/path")] -> [HttpDelete("/path")]
+```
+
+Use only one HTTP method attribute per method. If a method has both RESTween and ASP.NET Core HTTP method attributes, the generator reports `RESTWEEN001`.
+
+Authorization attributes are copied to the generated action:
+
+```text
+[AllowAnonymous] -> [AllowAnonymous]
+[Authorize]      -> [Authorize]
+```
+
+`[Authorize]` constructor policy and named values such as `Roles`, `Policy`, and `AuthenticationSchemes` are preserved.
+
 Parameter attributes are converted to MVC binding attributes:
 
 ```text
@@ -199,9 +244,10 @@ The current generator focuses on controller generation for MVP server support:
 
 - It generates ASP.NET Core MVC controllers, not Minimal APIs.
 - It only processes interfaces marked with `[RestweenController]`.
-- It only generates endpoints for methods with `[Get]`, `[Post]`, `[Put]`, or `[Delete]`.
+- It only generates endpoints for methods with one RESTween or ASP.NET Core HTTP method attribute.
 - It expects the consuming project to provide ASP.NET Core MVC references.
-- It does not implement business logic, validation, authorization, filters, or custom response wrapping.
+- It passes through ASP.NET Core authorization attributes but does not implement authorization policies by itself.
+- It does not implement business logic, validation, filters, or custom response wrapping.
 
 Use normal ASP.NET Core features around the generated controllers for authorization, filters, middleware, OpenAPI, validation, and exception handling.
 

@@ -17,10 +17,24 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
     private const string PostAttributeName = "RESTween.Attributes.PostAttribute";
     private const string PutAttributeName = "RESTween.Attributes.PutAttribute";
     private const string DeleteAttributeName = "RESTween.Attributes.DeleteAttribute";
+    private const string MvcHttpGetAttributeName = "Microsoft.AspNetCore.Mvc.HttpGetAttribute";
+    private const string MvcHttpPostAttributeName = "Microsoft.AspNetCore.Mvc.HttpPostAttribute";
+    private const string MvcHttpPutAttributeName = "Microsoft.AspNetCore.Mvc.HttpPutAttribute";
+    private const string MvcHttpDeleteAttributeName = "Microsoft.AspNetCore.Mvc.HttpDeleteAttribute";
     private const string QueryAttributeName = "RESTween.Attributes.QueryAttribute";
     private const string RouteAttributeName = "RESTween.Attributes.RouteAttribute";
     private const string BodyAttributeName = "RESTween.Attributes.BodyAttribute";
     private const string HeaderAttributeName = "RESTween.Attributes.HeaderAttribute";
+    private const string AllowAnonymousAttributeName = "Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute";
+    private const string AuthorizeAttributeName = "Microsoft.AspNetCore.Authorization.AuthorizeAttribute";
+
+    private static readonly DiagnosticDescriptor AmbiguousHttpMethodDescriptor = new(
+        "RESTWEEN001",
+        "Ambiguous RESTween endpoint HTTP method",
+        "Method '{0}' has multiple HTTP method attributes. Use either one RESTween HTTP attribute or one ASP.NET Core HTTP attribute.",
+        "RESTween.Server",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 
     private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat
         .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
@@ -56,7 +70,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             if (!HasAttribute(interfaceSymbol.GetAttributes(), RestweenControllerAttributeName))
                 continue;
 
-            var controller = GenerateController(interfaceSymbol);
+            var controller = GenerateController(interfaceSymbol, context);
             if (controller is null)
                 continue;
 
@@ -64,13 +78,13 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         }
     }
 
-    private static string? GenerateController(INamedTypeSymbol interfaceSymbol)
+    private static string? GenerateController(INamedTypeSymbol interfaceSymbol, GeneratorExecutionContext context)
     {
         var methods = interfaceSymbol
             .GetMembers()
             .OfType<IMethodSymbol>()
             .Where(method => method.MethodKind == MethodKind.Ordinary)
-            .Select(GetEndpointMethod)
+            .Select(method => GetEndpointMethod(method, context))
             .Where(method => method is not null)
             .Cast<EndpointMethod>()
             .ToArray();
@@ -83,6 +97,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             : interfaceSymbol.ContainingNamespace.ToDisplayString();
 
         var interfaceType = interfaceSymbol.ToDisplayString(TypeFormat);
+        var controllerAttributes = GetPassthroughAttributes(interfaceSymbol.GetAttributes());
         var controllerName = GetControllerName(interfaceSymbol);
         var builder = new StringBuilder();
 
@@ -98,6 +113,9 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
 
         var indent = namespaceName is null ? string.Empty : "    ";
         builder.Append(indent).AppendLine("[global::Microsoft.AspNetCore.Mvc.ApiController]");
+        foreach (var attribute in controllerAttributes)
+            builder.Append(indent).AppendLine(attribute);
+
         builder.Append(indent).Append("public sealed class ").Append(controllerName).AppendLine(" : global::Microsoft.AspNetCore.Mvc.ControllerBase");
         builder.Append(indent).AppendLine("{");
         builder.Append(indent).Append("    private readonly ").Append(interfaceType).AppendLine(" _handler;");
@@ -110,11 +128,13 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         foreach (var method in methods)
         {
             builder.AppendLine();
+            foreach (var attribute in method.PassthroughAttributes)
+                builder.Append(indent).Append("    ").AppendLine(attribute);
+
             builder.Append(indent).Append("    [global::Microsoft.AspNetCore.Mvc.")
                 .Append(method.MvcHttpAttribute)
-                .Append("(\"")
-                .Append(EscapeString(method.Url))
-                .AppendLine("\")]");
+                .Append(FormatMvcRouteArgument(method.Url))
+                .AppendLine("]");
 
             builder.Append(indent)
                 .Append("    public ")
@@ -149,9 +169,9 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         return builder.ToString();
     }
 
-    private static EndpointMethod? GetEndpointMethod(IMethodSymbol method)
+    private static EndpointMethod? GetEndpointMethod(IMethodSymbol method, GeneratorExecutionContext context)
     {
-        var http = GetHttpMethod(method);
+        var http = GetHttpMethod(method, context);
         if (http is null)
             return null;
 
@@ -165,32 +185,53 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             method.ReturnsVoid,
             http.Value.MvcHttpAttribute,
             http.Value.Url,
+            GetPassthroughAttributes(method.GetAttributes()),
             parameters);
     }
 
-    private static HttpMethodInfo? GetHttpMethod(IMethodSymbol method)
+    private static HttpMethodInfo? GetHttpMethod(IMethodSymbol method, GeneratorExecutionContext context)
     {
-        foreach (var attribute in method.GetAttributes())
-        {
-            var name = attribute.AttributeClass?.ToDisplayString();
-            var url = GetFirstStringConstructorArgument(attribute);
-            if (url is null)
-                continue;
+        var httpAttributes = method.GetAttributes()
+            .Select(GetHttpMethodInfo)
+            .Where(info => info is not null)
+            .Cast<HttpMethodInfo>()
+            .ToArray();
 
-            return name switch
-            {
-                GetAttributeName => new HttpMethodInfo("HttpGet", url, false),
-                PostAttributeName => new HttpMethodInfo("HttpPost", url, true),
-                PutAttributeName => new HttpMethodInfo("HttpPut", url, true),
-                DeleteAttributeName => new HttpMethodInfo("HttpDelete", url, false),
-                _ => null
-            };
+        if (httpAttributes.Length == 0)
+            return null;
+
+        if (httpAttributes.Length > 1)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                AmbiguousHttpMethodDescriptor,
+                method.Locations.FirstOrDefault(),
+                method.Name));
+            return null;
         }
 
-        return null;
+        return httpAttributes[0];
     }
 
-    private static GeneratedParameter GetParameter(IMethodSymbol method, IParameterSymbol parameter, string url, bool isBodyMethod)
+    private static HttpMethodInfo? GetHttpMethodInfo(AttributeData attribute)
+    {
+        var name = attribute.AttributeClass?.ToDisplayString();
+        var url = GetFirstStringConstructorArgument(attribute);
+
+        return name switch
+        {
+            GetAttributeName when url is not null => new HttpMethodInfo("HttpGet", url, false),
+            PostAttributeName when url is not null => new HttpMethodInfo("HttpPost", url, true),
+            PutAttributeName when url is not null => new HttpMethodInfo("HttpPut", url, true),
+            DeleteAttributeName when url is not null => new HttpMethodInfo("HttpDelete", url, false),
+            MvcHttpGetAttributeName => new HttpMethodInfo("HttpGet", url, false),
+            MvcHttpPostAttributeName => new HttpMethodInfo("HttpPost", url, true),
+            MvcHttpPutAttributeName => new HttpMethodInfo("HttpPut", url, true),
+            MvcHttpDeleteAttributeName => new HttpMethodInfo("HttpDelete", url, false),
+            _ => null
+        };
+    }
+
+    private static GeneratedParameter GetParameter(IMethodSymbol method, IParameterSymbol parameter, string? url, bool isBodyMethod)
     {
         var attribute = GetBindingAttribute(method, parameter, url, isBodyMethod);
         var type = parameter.Type.ToDisplayString(TypeFormat);
@@ -198,7 +239,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         return new GeneratedParameter(name, $"{attribute} {type} {name}");
     }
 
-    private static string GetBindingAttribute(IMethodSymbol method, IParameterSymbol parameter, string url, bool isBodyMethod)
+    private static string GetBindingAttribute(IMethodSymbol method, IParameterSymbol parameter, string? url, bool isBodyMethod)
     {
         foreach (var attribute in parameter.GetAttributes())
         {
@@ -216,7 +257,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
                 return BuildMvcBindingAttribute("FromHeader", GetFirstStringConstructorArgument(attribute) ?? parameter.Name);
         }
 
-        if (url.IndexOf("{" + parameter.Name + "}", StringComparison.Ordinal) >= 0)
+        if (url?.IndexOf("{" + parameter.Name + "}", StringComparison.Ordinal) >= 0)
             return BuildMvcBindingAttribute("FromRoute", parameter.Name);
 
         if (IsSimpleType(parameter.Type))
@@ -263,6 +304,48 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         return $"[global::Microsoft.AspNetCore.Mvc.{attributeName}(Name = \"{EscapeString(name)}\")]";
     }
 
+    private static IReadOnlyList<string> GetPassthroughAttributes(ImmutableArray<AttributeData> attributes)
+    {
+        return attributes
+            .Select(GetPassthroughAttribute)
+            .Where(attribute => attribute is not null)
+            .Cast<string>()
+            .ToArray();
+    }
+
+    private static string? GetPassthroughAttribute(AttributeData attribute)
+    {
+        var name = attribute.AttributeClass?.ToDisplayString();
+        return name switch
+        {
+            AllowAnonymousAttributeName => "[global::Microsoft.AspNetCore.Authorization.AllowAnonymous]",
+            AuthorizeAttributeName => BuildAuthorizeAttribute(attribute),
+            _ => null
+        };
+    }
+
+    private static string BuildAuthorizeAttribute(AttributeData attribute)
+    {
+        var arguments = new List<string>();
+
+        if (attribute.ConstructorArguments.Length > 0
+            && attribute.ConstructorArguments[0].Value is string policy
+            && !string.IsNullOrWhiteSpace(policy))
+        {
+            arguments.Add($"\"{EscapeString(policy)}\"");
+        }
+
+        foreach (var namedArgument in attribute.NamedArguments)
+        {
+            if (namedArgument.Value.Value is string value && !string.IsNullOrWhiteSpace(value))
+                arguments.Add($"{namedArgument.Key} = \"{EscapeString(value)}\"");
+        }
+
+        return arguments.Count == 0
+            ? "[global::Microsoft.AspNetCore.Authorization.Authorize]"
+            : "[global::Microsoft.AspNetCore.Authorization.Authorize(" + string.Join(", ", arguments) + ")]";
+    }
+
     private static string? GetFirstStringConstructorArgument(AttributeData attribute)
     {
         return attribute.ConstructorArguments.Length > 0
@@ -270,6 +353,13 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             && !string.IsNullOrWhiteSpace(value)
                 ? value
                 : null;
+    }
+
+    private static string FormatMvcRouteArgument(string? url)
+    {
+        return string.IsNullOrWhiteSpace(url)
+            ? string.Empty
+            : $"(\"{EscapeString(url)}\")";
     }
 
     private static bool HasAttribute(ImmutableArray<AttributeData> attributes, string metadataName)
@@ -314,7 +404,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
 
     private readonly struct HttpMethodInfo
     {
-        public HttpMethodInfo(string mvcHttpAttribute, string url, bool isBodyMethod)
+        public HttpMethodInfo(string mvcHttpAttribute, string? url, bool isBodyMethod)
         {
             MvcHttpAttribute = mvcHttpAttribute;
             Url = url;
@@ -322,7 +412,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         }
 
         public string MvcHttpAttribute { get; }
-        public string Url { get; }
+        public string? Url { get; }
         public bool IsBodyMethod { get; }
     }
 
@@ -333,7 +423,8 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             string returnType,
             bool returnsVoid,
             string mvcHttpAttribute,
-            string url,
+            string? url,
+            IReadOnlyList<string> passthroughAttributes,
             IReadOnlyList<GeneratedParameter> parameters)
         {
             Name = name;
@@ -341,6 +432,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
             ReturnsVoid = returnsVoid;
             MvcHttpAttribute = mvcHttpAttribute;
             Url = url;
+            PassthroughAttributes = passthroughAttributes;
             Parameters = parameters;
         }
 
@@ -348,7 +440,9 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         public string ReturnType { get; }
         public bool ReturnsVoid { get; }
         public string MvcHttpAttribute { get; }
-        public string Url { get; }
+        public string? Url { get; }
+
+        public IReadOnlyList<string> PassthroughAttributes { get; }
         public IReadOnlyList<GeneratedParameter> Parameters { get; }
     }
 

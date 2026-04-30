@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace RESTween.Attributes
 {
@@ -12,7 +12,8 @@ namespace RESTween.Attributes
     public class CacheAttribute : Attribute
     {
         public int DurationSeconds { get; }
-        public string? Key { get;  }
+
+        public string? Key { get; }
 
         public CacheAttribute(int value, CacheTimeUnit unit = CacheTimeUnit.Seconds)
         {
@@ -23,7 +24,8 @@ namespace RESTween.Attributes
                 _ => value
             };
         }
-        public CacheAttribute(int value,string key, CacheTimeUnit unit = CacheTimeUnit.Seconds)
+
+        public CacheAttribute(int value, string key, CacheTimeUnit unit = CacheTimeUnit.Seconds)
         {
             DurationSeconds = unit switch
             {
@@ -34,5 +36,4 @@ namespace RESTween.Attributes
             Key = key;
         }
     }
-
 }

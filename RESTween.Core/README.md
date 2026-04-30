@@ -8,10 +8,7 @@ Install this package when you want to define REST API interfaces in a shared ass
 
 - HTTP method attributes: `[Get]`, `[Post]`, `[Put]`, `[Delete]`.
 - Parameter binding attributes: `[Route]`, `[Query]`, `[Body]`, `[Header]`.
-- Method-level headers through `[Headers]`.
-- Multipart marker through `[Multipart]`.
 - Query collection formatting through `CollectionFormat`.
-- Metadata attributes such as `[Cache]` and `[RateLimit]` that custom handlers can inspect.
 - A small `netstandard2.0` contract assembly that can be referenced by shared DTO or contract projects.
 
 ## Install
@@ -124,47 +121,18 @@ Task<ProfileDto> GetProfileAsync([Header("Authorization")] string authorization)
 
 The client package writes parameter values into request headers. The server package maps them to ASP.NET Core `[FromHeader]`.
 
-## Method-Level Headers
+## Client-Only Attributes
 
-Use `[Headers]` for static headers:
+Some attributes are intentionally not part of `RESTween.Core` because they describe client request-building behavior rather than shared HTTP contracts.
 
-```csharp
-[Headers("X-Client: mobile", "Accept-Language: en-US")]
-[Get("/profile")]
-Task<ProfileDto> GetProfileAsync();
-```
+These attributes live in the `RESTween` client package:
 
-The client package applies these headers to the outgoing request.
+- `[Headers]` for static request headers.
+- `[Multipart]` for `multipart/form-data` client requests.
+- `[Cache]` for metadata inspected by custom client handlers.
+- `[RateLimit]` for metadata inspected by custom client handlers.
 
-## Multipart Marker
-
-Use `[Multipart]` on methods that should be sent as `multipart/form-data` by the client package:
-
-```csharp
-[Multipart]
-[Post("/files")]
-Task UploadAsync(Stream file, string description);
-```
-
-`RESTween.Core` only defines the marker attribute. The actual multipart request building is implemented by `RESTween`.
-
-## Metadata Attributes
-
-`[Cache]` and `[RateLimit]` are metadata attributes that can be inspected by custom handlers or infrastructure.
-
-Example:
-
-```csharp
-[Cache(60)]
-[Get("/profile")]
-Task<ProfileDto> GetProfileAsync();
-
-[RateLimit(maxRequests: 10, timeWindowSeconds: 60)]
-[Post("/messages")]
-Task SendMessageAsync([Body] SendMessageDto dto);
-```
-
-`RESTween.Core` does not implement caching or rate limiting by itself. It only provides the attributes so other layers can make decisions from a shared contract.
+They keep the same namespace, `RESTween.Attributes`, so client code can still use the same `using` directive after installing `RESTween`.
 
 ## What This Package Does Not Do
 
@@ -174,6 +142,7 @@ Task SendMessageAsync([Body] SendMessageDto dto);
 - Register DI services.
 - Generate ASP.NET Core controllers.
 - Serialize request or response bodies.
+- Provide client-only request-building metadata such as `[Headers]`, `[Multipart]`, `[Cache]`, or `[RateLimit]`.
 
 For HTTP clients, install `RESTween`.
 

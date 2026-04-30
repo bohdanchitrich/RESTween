@@ -1,19 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 
 namespace RESTween.Attributes
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public sealed class RateLimitAttribute : Attribute
     {
-
         public int MaxRequests { get; }
-        public int TimeWindowSeconds { get; }
-        public string? Key { get; }
 
+        public int TimeWindowSeconds { get; }
+
+        public string? Key { get; }
 
         public RateLimitAttribute(int maxRequests, int timeWindowSeconds)
         {
@@ -27,7 +23,7 @@ namespace RESTween.Attributes
             TimeWindowSeconds = timeWindowSeconds;
         }
 
-        public RateLimitAttribute(int maxRequests, int timeWindowSeconds,string key)
+        public RateLimitAttribute(int maxRequests, int timeWindowSeconds, string key)
         {
             if (maxRequests <= 0)
                 throw new ArgumentException("MaxRequests must be greater than zero");

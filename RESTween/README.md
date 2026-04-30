@@ -12,6 +12,7 @@ The package is designed for teams that want strongly typed API contracts without
 - Method-level headers through `[Headers]`.
 - JSON request body serialization with `System.Text.Json`.
 - Multipart upload support for `Stream`, `byte[]`, `FileInfo`, simple values, and complex JSON parts.
+- Client-only metadata attributes: `[Headers]`, `[Multipart]`, `[Cache]`, and `[RateLimit]`.
 - Custom request handling through `IRequestHandler`.
 - Extensible request-building pipeline through DI.
 - Shared contracts from `RESTween.Core`, so the same interface can be reused by client and server packages.
@@ -23,6 +24,8 @@ dotnet add package RESTween
 ```
 
 `RESTween` depends on `RESTween.Core`, so the shared attributes are installed automatically.
+
+The client package also owns client-only attributes such as `[Headers]`, `[Multipart]`, `[Cache]`, and `[RateLimit]`. They use the same `RESTween.Attributes` namespace as the shared contract attributes.
 
 ## Basic Usage
 
@@ -312,6 +315,13 @@ The request handler receives a `RequestContext`, which contains:
 
 - `Request`: the generated `HttpRequestMessage`.
 - `Attributes`: the attributes found on the API method, useful for custom behavior such as caching, rate limits, retries, or logging.
+
+Client-only metadata attributes can be read from `RequestContext`:
+
+```csharp
+var cache = context.GetAttribute<CacheAttribute>();
+var rateLimit = context.GetAttribute<RateLimitAttribute>();
+```
 
 ## Extending Request Building
 
