@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0;net7.0;net6.0;net5.0;</TargetFrameworks>
+		<TargetFrameworks>net8.0;net7.0;net6.0;net5.0</TargetFrameworks>
 	
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
@@ -10,7 +10,7 @@
 
 	<PropertyGroup>
 		<PackageId>RESTween</PackageId>
-		<Version>1.5.1</Version>
+		<Version>1.5.2</Version>
 		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
 		<Description>
@@ -19,7 +19,7 @@
 		<PackageTags>REST;API;HTTP;Proxy;DynamicProxy;Castle;HttpClient</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<OutputPath>bin\Release\</OutputPath>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageProjectUrl>https://github.com/bohdanchitrich/RESTween</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/bohdanchitrich/RESTween</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -31,6 +31,9 @@
 	<ItemGroup>
 		<PackageReference Include="Castle.Core.AsyncInterceptor" Version="2.1.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\RESTween.Core\RESTween.Core.csproj" />
 	</ItemGroup>
 	<PropertyGroup>
 		<PackageReadmeFile>README.md</PackageReadmeFile>

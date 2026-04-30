@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>RESTween.Core</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Bohdan Khitrikh</Authors>
+    <Product>Library</Product>
+    <Description>Shared RESTween contracts and attributes used by RESTween client and server packages.</Description>
+    <PackageTags>REST;API;HTTP;Attributes;Contracts</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/bohdanchitrich/RESTween</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bohdanchitrich/RESTween</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+</Project>

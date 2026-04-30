@@ -1,0 +1,71 @@
+name: Publish NuGet packages
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    env:
+      CONFIGURATION: Release
+      NUGET_SOURCE: https://api.nuget.org/v3/index.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve package version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Using package version $VERSION"
+
+      - name: Restore
+        shell: bash
+        run: |
+          dotnet restore RESTween.Core/RESTween.Core.csproj /p:NuGetAudit=false
+          dotnet restore RESTween/RESTween.csproj /p:NuGetAudit=false
+          dotnet restore RESTWeen.Server/RESTween.Server.csproj /p:NuGetAudit=false
+          dotnet restore Tests/Tests.csproj /p:NuGetAudit=false
+          dotnet restore RESTween.Server.Tests/RESTween.Server.Tests.csproj /p:NuGetAudit=false
+
+      - name: Build packages
+        shell: bash
+        run: |
+          dotnet build RESTween.Core/RESTween.Core.csproj --configuration "$CONFIGURATION" --no-restore -m:1 /p:GeneratePackageOnBuild=false /p:NuGetAudit=false
+          dotnet build RESTween/RESTween.csproj --configuration "$CONFIGURATION" --no-restore -m:1 /p:GeneratePackageOnBuild=false /p:NuGetAudit=false
+          dotnet build RESTWeen.Server/RESTween.Server.csproj --configuration "$CONFIGURATION" --no-restore -m:1 /p:GeneratePackageOnBuild=false /p:NuGetAudit=false
+
+      - name: Test
+        shell: bash
+        run: |
+          dotnet test Tests/Tests.csproj --configuration "$CONFIGURATION" --no-restore -m:1 --verbosity normal /p:NuGetAudit=false
+          dotnet test RESTween.Server.Tests/RESTween.Server.Tests.csproj --configuration "$CONFIGURATION" --no-restore -m:1 --verbosity normal /p:NuGetAudit=false
+
+      - name: Pack RESTween.Core
+        run: dotnet pack RESTween.Core/RESTween.Core.csproj --configuration "$CONFIGURATION" --no-build --no-restore --output artifacts /p:PackageVersion="$PACKAGE_VERSION" /p:NuGetAudit=false
+
+      - name: Pack RESTween
+        run: dotnet pack RESTween/RESTween.csproj --configuration "$CONFIGURATION" --no-build --no-restore --output artifacts /p:PackageVersion="$PACKAGE_VERSION" /p:NuGetAudit=false
+
+      - name: Pack RESTween.Server
+        run: dotnet pack RESTWeen.Server/RESTween.Server.csproj --configuration "$CONFIGURATION" --no-build --no-restore --output artifacts /p:PackageVersion="$PACKAGE_VERSION" /p:NuGetAudit=false
+
+      - name: Publish packages
+        shell: bash
+        run: |
+          for package in artifacts/*.nupkg; do
+            dotnet nuget push "$package" --api-key "${{ secrets.NUGET_API_KEY }}" --source "$NUGET_SOURCE" --skip-duplicate
+          done
