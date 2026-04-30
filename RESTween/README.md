@@ -1,274 +1,408 @@
 # RESTween
 
-**RESTween** is a library for dynamically invoking REST APIs using proxy interfaces, leveraging Castle DynamicProxy. It allows for the easy creation of REST API clients with minimal code.
+RESTween is a lightweight REST API client package for .NET. It turns a C# interface into a runtime HTTP client by using Castle DynamicProxy, `HttpClient`, and RESTween attributes.
 
-## Features
+The package is designed for teams that want strongly typed API contracts without hand-writing request URLs, query strings, headers, JSON bodies, multipart forms, and response handling for every endpoint.
 
-- Easy creation of REST API clients using proxies.
-- Support for attributes to define the type of HTTP request (`GET`, `POST`, `PUT`, `DELETE`).
-- Integration with any `HttpClient` for executing requests.
-- Support for request and response handling through the `IRequestHandler` interface.
+## What This Package Provides
 
-## Installation
+- Runtime proxy clients for API interfaces.
+- Attribute-based endpoint contracts with `[Get]`, `[Post]`, `[Put]`, and `[Delete]`.
+- Route, query, header, body, and multipart parameter binding.
+- Method-level headers through `[Headers]`.
+- JSON request body serialization with `System.Text.Json`.
+- Multipart upload support for `Stream`, `byte[]`, `FileInfo`, simple values, and complex JSON parts.
+- Custom request handling through `IRequestHandler`.
+- Extensible request-building pipeline through DI.
+- Shared contracts from `RESTween.Core`, so the same interface can be reused by client and server packages.
 
-To install **RESTween**, use the NuGet Package Manager or .NET CLI:
+## Install
 
 ```bash
 dotnet add package RESTween
 ```
 
-## Usage Example
+`RESTween` depends on `RESTween.Core`, so the shared attributes are installed automatically.
 
-### Define an Interface
+## Basic Usage
 
-First, define an interface for your REST API using attributes that correspond to the HTTP request type:
+Define an API interface:
 
 ```csharp
-public interface IMyApi
+using RESTween.Attributes;
+
+public interface IUserApi
 {
     [Get("/users/{id}")]
-    Task<User> GetUserAsync(int id);
+    Task<UserDto> GetUserAsync([Route] int id);
+
+    [Get("/users")]
+    Task<IReadOnlyList<UserDto>> SearchUsersAsync([Query] UserSearchQuery query);
 
     [Post("/users")]
-    Task CreateUserAsync([Body] User user);
+    Task<UserDto> CreateUserAsync([Body] CreateUserDto dto);
 
     [Put("/users/{id}")]
-    Task UpdateUserAsync(int id, [Body] User user);
+    Task<UserDto> UpdateUserAsync([Route] int id, [Body] UpdateUserDto dto);
 
     [Delete("/users/{id}")]
-    Task DeleteUserAsync(int id);
+    Task DeleteUserAsync([Route] int id);
 }
 ```
 
-### Register the API Client
-
-Next, register this API client in your dependency injection container:
+Register the client:
 
 ```csharp
-services.AddApiClient<IMyApi>(new Uri("https://api.example.com"));
+using RESTween;
+
+services.AddApiClient<IUserApi>(new Uri("https://api.example.com"));
 ```
 
-### Use the API Client
-
-Now, you can use `IMyApi` in your services:
+Inject and use the interface:
 
 ```csharp
-public class UserService
+public sealed class UserService
 {
-    private readonly IMyApi _api;
+    private readonly IUserApi _users;
 
-    public UserService(IMyApi api)
+    public UserService(IUserApi users)
     {
-        _api = api;
+        _users = users;
     }
 
-    public async Task<User> GetUser(int id)
+    public Task<UserDto> GetUserAsync(int id)
     {
-        return await _api.GetUserAsync(id);
+        return _users.GetUserAsync(id);
     }
 }
 ```
 
-## IRequestHandler Interface
+RESTween creates an implementation of `IUserApi` at runtime. Calling `GetUserAsync(42)` builds and sends:
 
-`IRequestHandler`  is an interface responsible for handling HTTP requests and responses. You can implement your own handler to customize the behavior of the HTTP client, or you can use the built-in `DefaultRequestHandler`:
+```text
+GET https://api.example.com/users/42
+```
+
+## Supported Interface Methods
+
+RESTween client proxies support asynchronous methods:
 
 ```csharp
-public interface IRequestHandler
-{
-    Task<T> HandleRequestAsync<T>(HttpRequestMessage request, HttpClient httpClient);
-    Task HandleRequestAsync(HttpRequestMessage request, HttpClient httpClient);
-}
+Task DoWorkAsync();
+Task<T> GetValueAsync();
 ```
 
-### Example of Custom `IRequestHandler` Implementation
+Synchronous interface methods are not supported by the client proxy and will throw `NotSupportedException`.
 
-Here’s an example of a custom `IRequestHandler` implementation that includes authentication, loading indicators, error handling, and logging of request time:
+## Request-Building Rules
+
+RESTween builds requests through a pipeline. The default priority is:
+
+1. Read method metadata from `[Get]`, `[Post]`, `[Put]`, `[Delete]`, `[Multipart]`, and `[Headers]`.
+2. Apply method-level headers from `[Headers("Name: Value")]`.
+3. Bind each parameter with registered binders.
+4. Replace route placeholders.
+5. Build the query string.
+6. Create the final `HttpRequestMessage`.
+7. Attach JSON body, multipart content, and headers.
+
+Explicit parameter attributes always win:
 
 ```csharp
-public class HttpHandler : IRequestHandler
-{
-    private readonly INavigationService navigationService;
-    private readonly ILoadingService loadingService;
-    private readonly IAlertService alertService;
-    private readonly ILocalStorageService localStorageService;
-    private Stopwatch stopwatch;
-
-    public HttpHandler(INavigationService navigationService, ILoadingService loadingService, IAlertService alertService, ILocalStorageService localStorageService)
-    {
-        this.navigationService = navigationService;
-        this.loadingService = loadingService;
-        this.alertService = alertService;
-        this.localStorageService = localStorageService;
-        stopwatch = new Stopwatch();
-    }
-
-    public async Task<T> HandleRequestAsync<T>(HttpRequestMessage request, HttpClient httpClient)
-    {
-        stopwatch.Restart();
-        try
-        {
-            loadingService.Show();
-            var token = await localStorageService.GetAuthToken();
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            var response = await httpClient.SendAsync(request);
-            var content = await response.Content.ReadAsStringAsync();
-            stopwatch.Stop();
-            Console.WriteLine($"Sent request {request.RequestUri} with time: {stopwatch.ElapsedMilliseconds}ms");
-
-            if (!response.IsSuccessStatusCode)
-            {
-                await HandleFailedResponse(response);
-                return default;
-            }
-
-            if (response.StatusCode == HttpStatusCode.NoContent)
-            {
-                return default;
-            }
-
-            if (typeof(T) == typeof(string))
-            {
-                return (T)(object)content;
-            }
-            else if (typeof(T).IsPrimitive || typeof(T) == typeof(decimal))
-            {
-                return (T)Convert.ChangeType(content, typeof(T));
-            }
-
-            return JsonSerializer.Deserialize<T>(content) ?? default;
-        }
-        catch (Exception e)
-        {
-#if DEBUG
-            alertService.ShowError($"{e.Message} {request.RequestUri?.ToString()}");
-#else
-            alertService.ShowError("Can't connect to server");
-#endif
-            return default;
-        }
-        finally
-        {
-            loadingService.Hide();
-        }
-    }
-
-    public async Task HandleRequestAsync(HttpRequestMessage request, HttpClient httpClient)
-    {
-        stopwatch.Restart();
-        try
-        {
-            loadingService.Show();
-            var token = await localStorageService.GetAuthToken();
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            var response = await httpClient.SendAsync(request);
-            stopwatch.Stop();
-            Console.WriteLine($"Sent request {request.RequestUri} with time: {stopwatch.ElapsedMilliseconds}ms");
-
-            if (!response.IsSuccessStatusCode)
-            {
-                await HandleFailedResponse(response);
-            }
-        }
-        catch (Exception e)
-        {
-#if DEBUG
-            alertService.ShowError($"{e.Message} {request.RequestUri?.ToString()}");
-#else
-            alertService.ShowError("Can't connect to server");
-#endif
-        }
-        finally
-        {
-            loadingService.Hide();
-        }
-    }
-
-    private async Task HandleFailedResponse(HttpResponseMessage response)
-    {
-        if (response.IsSuccessStatusCode) return;
-        var content = await response.Content.ReadAsStringAsync();
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            await localStorageService.RemoveAuthToken();
-            navigationService.NavigateToLogin();
-            return;
-        }
-        var errorResult = JsonSerializer.Deserialize<ErrorRESM>(content);
-        if (errorResult == null) return;
-#if DEBUG
-        alertService.ShowError(errorResult.DebugMessage);
-#else
-        alertService.ShowError(errorResult.ReleaseMessage);
-#endif
-    }
-}
+[Route]  -> route placeholder value
+[Query]  -> query string value
+[Header] -> request header value
+[Body]   -> JSON request body
 ```
 
-### Integrating Custom `IRequestHandler`
+If a parameter has no RESTween binding attribute, the default pipeline uses these conventions:
 
-To make your custom `IRequestHandler` work with **RESTween**, you need to register it in your dependency injection container:
+- If the parameter name appears in the URL template as `{name}`, it becomes a route value.
+- If it is a simple type, enum, string, `Guid`, `DateTime`, or a supported collection, it becomes a query value.
+- If it is a complex object on `GET` or `DELETE`, its public properties become query values.
+- If it is a complex object on `POST` or `PUT`, it becomes the JSON body.
+- `GET` and `DELETE` requests cannot contain a body.
+- A request can have only one body parameter.
+- Null query values are skipped.
+- Null route values throw a `RestweenRequestBuildException`.
+- Duplicate query keys throw unless `[Query(collectionFormat: CollectionFormat.Multi)]` is used.
+
+## Route Parameters
+
+Route values replace placeholders in the URL template:
 
 ```csharp
-public void ConfigureServices(IServiceCollection services)
+[Get("/users/{id}/orders/{orderId}")]
+Task<OrderDto> GetOrderAsync([Route] int id, [Route] Guid orderId);
+```
+
+The `[Route]` name can be inferred from the parameter name or set explicitly:
+
+```csharp
+[Get("/users/{userId}")]
+Task<UserDto> GetUserAsync([Route("userId")] int id);
+```
+
+Route values are URL-encoded.
+
+## Query Parameters
+
+Scalar query parameters:
+
+```csharp
+[Get("/users")]
+Task<IReadOnlyList<UserDto>> GetUsersAsync([Query("active")] bool isActive);
+```
+
+Complex query DTOs:
+
+```csharp
+public sealed class UserSearchQuery
 {
-    // Register your custom IRequestHandler
-    services.AddScoped<IRequestHandler, HttpHandler>();
+    public string? Term { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+}
 
-    // Register your API client
-    services.AddApiClient<IMyApi>(new Uri("https://api.example.com"));
+[Get("/users")]
+Task<IReadOnlyList<UserDto>> SearchAsync([Query] UserSearchQuery query);
+```
 
-    // Register other services used in HttpHandler
-    services.AddScoped<INavigationService, NavigationService>();
-    services.AddScoped<ILoadingService, LoadingService>();
-    services.AddScoped<IAlertService, AlertService>();
-    services.AddScoped<ILocalStorageService, LocalStorageService>();
+`[JsonPropertyName]` is respected when complex query DTO properties are expanded:
+
+```csharp
+public sealed class UserSearchQuery
+{
+    [JsonPropertyName("page_size")]
+    public int PageSize { get; set; }
 }
 ```
 
-After this setup, **RESTween** will use your `HttpHandler` to handle all requests sent through API clients created with **RESTween**.
+Collections are supported. With `CollectionFormat.Multi`, RESTween emits repeated `name[]` keys:
 
-## Attributes
+```csharp
+[Get("/users")]
+Task<IReadOnlyList<UserDto>> GetUsersAsync(
+    [Query("role", CollectionFormat.Multi)] string[] roles);
+```
 
-**RESTween** supports several custom attributes for defining the type of HTTP request and parameters:
+Example output:
 
-- **GetAttribute**: Specifies that the method performs an HTTP `GET` request.
+```text
+/users?role[]=admin&role[]=manager
+```
 
-  ```csharp
-  [Get("/users/{id}")]
-  ```
+## Headers
 
-- **PostAttribute**: Specifies that the method performs an HTTP `POST` request.
+Use `[Headers]` for static method-level headers:
 
-  ```csharp
-  [Post("/users")]
-  ```
+```csharp
+[Headers("X-Client: mobile", "Accept-Language: en-US")]
+[Get("/profile")]
+Task<ProfileDto> GetProfileAsync();
+```
 
-- **PutAttribute**: Specifies that the method performs an HTTP `PUT` request.
+Use `[Header]` for dynamic parameter-level headers:
 
-  ```csharp
-  [Put("/users/{id}")]
-  ```
+```csharp
+[Get("/profile")]
+Task<ProfileDto> GetProfileAsync([Header("Authorization")] string bearerToken);
+```
 
-- **DeleteAttribute**: Specifies that the method performs an HTTP `DELETE` request.
+Header values are formatted using the configured `IRestweenValueFormatter`.
 
-  ```csharp
-  [Delete("/users/{id}")]
-  ```
+## Body Requests
 
-- **QueryAttribute**: Used to mark query parameters in a method.
+Use `[Body]` for JSON bodies:
 
-  ```csharp
-  [Get("/search")]
-  Task SearchAsync([Query("term")] string searchTerm);
-  ```
+```csharp
+[Post("/users")]
+Task<UserDto> CreateUserAsync([Body] CreateUserDto dto);
+```
 
-- **BodyAttribute**: Indicates that the method parameter should be serialized and sent in the request body.
+For `POST` and `PUT`, complex parameters without explicit attributes are also treated as body parameters:
 
-  ```csharp
-  Task CreateUserAsync([Body] User user);
-  ```
+```csharp
+[Put("/users/{id}")]
+Task<UserDto> UpdateUserAsync([Route] int id, UpdateUserDto dto);
+```
 
-## Conclusion
+Only one body parameter is allowed.
 
-**RESTween** provides a convenient and flexible way to create clients for REST APIs, minimizing the amount of necessary code and simplifying the integration process. The use of attributes and the ability to customize request handling make this package a valuable tool for developers working with REST APIs in .NET.
+## Multipart Requests
+
+Add `[Multipart]` to build `multipart/form-data` requests:
+
+```csharp
+[Multipart]
+[Post("/files")]
+Task<FileResultDto> UploadAsync(
+    [Header("X-Trace-Id")] string traceId,
+    Stream file,
+    string description,
+    UploadMetadata metadata);
+```
+
+The default multipart binder supports:
+
+- `Stream` as a file part.
+- `byte[]` as a file part.
+- `FileInfo` as a file part with the original file name.
+- Simple values as string parts.
+- Complex objects as JSON parts.
+
+## Value Formatting
+
+Route, query, and header values are formatted consistently:
+
+- `bool` becomes `true` or `false`.
+- Enums use `[EnumMember(Value = "...")]` when available.
+- `DateTime` route/query values use invariant ISO-style formatting.
+- `DateTime` header values use RFC1123 formatting.
+- Numbers and other `IFormattable` values use invariant culture.
+
+## Custom Request Handling
+
+`IRequestHandler` controls how requests are sent and how responses are processed:
+
+```csharp
+using RESTween.Handlers;
+
+public sealed class AuthenticatedRequestHandler : IRequestHandler
+{
+    private readonly ITokenProvider _tokens;
+
+    public AuthenticatedRequestHandler(ITokenProvider tokens)
+    {
+        _tokens = tokens;
+    }
+
+    public async Task<T> HandleRequestAsync<T>(RequestContext context, HttpClient httpClient)
+    {
+        var token = await _tokens.GetTokenAsync();
+        context.Request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(context.Request);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<T>() ?? default!;
+    }
+
+    public async Task HandleRequestAsync(RequestContext context, HttpClient httpClient)
+    {
+        var token = await _tokens.GetTokenAsync();
+        context.Request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(context.Request);
+        response.EnsureSuccessStatusCode();
+    }
+}
+```
+
+Register the handler before the API client:
+
+```csharp
+services.AddScoped<IRequestHandler, AuthenticatedRequestHandler>();
+services.AddApiClient<IUserApi>(new Uri("https://api.example.com"));
+```
+
+The request handler receives a `RequestContext`, which contains:
+
+- `Request`: the generated `HttpRequestMessage`.
+- `Attributes`: the attributes found on the API method, useful for custom behavior such as caching, rate limits, retries, or logging.
+
+## Extending Request Building
+
+The client request builder is split into public services under `RESTween.Building`:
+
+- `IRestweenRequestBuilder`: builds the final `HttpRequestMessage`.
+- `IRestweenParameterBinder`: binds one method parameter into route, query, header, body, or multipart state.
+- `IRestweenContentSerializer`: serializes JSON bodies and multipart JSON parts.
+- `IRestweenValueFormatter`: formats route, query, and header values.
+
+`AddApiClient<T>` automatically registers default implementations using `TryAdd`, so user registrations can replace the serializer, formatter, or request builder.
+
+Example custom serializer:
+
+```csharp
+public sealed class MyJsonSerializer : IRestweenContentSerializer
+{
+    private readonly JsonSerializerOptions _options = new(JsonSerializerDefaults.Web);
+
+    public HttpContent SerializeJsonContent(object value)
+    {
+        return new StringContent(
+            JsonSerializer.Serialize(value, _options),
+            Encoding.UTF8,
+            "application/json");
+    }
+
+    public HttpContent SerializeMultipartJsonContent(object value)
+    {
+        return SerializeJsonContent(value);
+    }
+}
+```
+
+Register it:
+
+```csharp
+services.AddSingleton<IRestweenContentSerializer, MyJsonSerializer>();
+services.AddApiClient<IUserApi>(new Uri("https://api.example.com"));
+```
+
+Example custom binder:
+
+```csharp
+public sealed class TenantParameterBinder : IRestweenParameterBinder
+{
+    public bool TryBind(RestweenParameterContext context)
+    {
+        if (context.Parameter.Name != "tenantId")
+        {
+            return false;
+        }
+
+        if (context.Value != null)
+        {
+            context.State.AddHeader("X-Tenant-Id", context.Value.ToString()!);
+        }
+
+        return true;
+    }
+}
+```
+
+Register additional binders with `AddSingleton<IRestweenParameterBinder, TenantParameterBinder>()`.
+
+## Factory Usage Without DI
+
+You can create a client manually:
+
+```csharp
+var httpClient = new HttpClient
+{
+    BaseAddress = new Uri("https://api.example.com")
+};
+
+var handler = new DefaultRequestHandler();
+var api = ApiClientFactory.CreateClient<IUserApi>(httpClient, handler);
+```
+
+You can also pass a custom `IRestweenRequestBuilder`:
+
+```csharp
+var api = ApiClientFactory.CreateClient<IUserApi>(
+    httpClient,
+    handler,
+    customRequestBuilder);
+```
+
+## Related Packages
+
+- `RESTween.Core`: shared attributes and API contract primitives.
+- `RESTween.Server`: source generator that creates ASP.NET Core controllers from RESTween interfaces.
+
+Use `RESTween` when your application needs to call HTTP APIs through strongly typed interfaces.

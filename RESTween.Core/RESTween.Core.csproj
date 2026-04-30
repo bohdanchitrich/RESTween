@@ -15,6 +15,11 @@
     <PackageProjectUrl>https://github.com/bohdanchitrich/RESTween</PackageProjectUrl>
     <RepositoryUrl>https://github.com/bohdanchitrich/RESTween</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
 </Project>

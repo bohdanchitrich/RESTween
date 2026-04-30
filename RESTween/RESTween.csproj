@@ -14,7 +14,7 @@
 		<Authors>Bohdan Khitrikh</Authors>
 		<Product>Library</Product>
 		<Description>
-			RESTween is a lightweight and dynamic library for creating REST API clients using proxy interfaces, powered by Castle DynamicProxy. It simplifies the process of making HTTP requests by allowing developers to define API contracts via interfaces, which are then dynamically implemented at runtime. RESTween supports GET and POST requests and integrates seamlessly with HttpClient. Ideal for building scalable and maintainable applications with minimal boilerplate code.
+			RESTween is a lightweight dynamic REST API client for .NET. It creates runtime HTTP clients from interface contracts, supports GET, POST, PUT, DELETE, route/query/header/body/multipart binding, custom request handlers, and an extensible request-building pipeline.
 		</Description>
 		<PackageTags>REST;API;HTTP;Proxy;DynamicProxy;Castle;HttpClient</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
