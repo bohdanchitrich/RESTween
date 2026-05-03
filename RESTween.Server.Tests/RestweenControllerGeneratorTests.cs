@@ -31,6 +31,7 @@ namespace RESTween.Server.Tests
                     public string? Name { get; set; }
                 }
 
+                [RestweenController]
                 public interface IUserApi
                 {
                     [Get("/users/{id}")]
@@ -82,6 +83,7 @@ namespace RESTween.Server.Tests
                     public string? Term { get; set; }
                 }
 
+                [RestweenController]
                 public interface ISearchApi
                 {
                     [Get("/users/{id}")]
@@ -123,6 +125,7 @@ namespace RESTween.Server.Tests
                     public string? Token { get; set; }
                 }
 
+                [RestweenController]
                 public interface IUserApi
                 {
                     [AllowAnonymous]
@@ -161,9 +164,11 @@ namespace RESTween.Server.Tests
         {
             var source = """
                 using Microsoft.AspNetCore.Mvc;
+                using RESTween.Attributes;
 
                 namespace Demo;
 
+                [RestweenController]
                 public interface IHealthApi
                 {
                     [HttpGet]
@@ -187,6 +192,7 @@ namespace RESTween.Server.Tests
 
                 namespace Demo;
 
+                [RestweenController]
                 public interface IUserApi
                 {
                     [Get("/users")]
@@ -216,6 +222,7 @@ namespace RESTween.Server.Tests
                     public int Id { get; set; }
                 }
 
+                [RestweenController]
                 public interface IUserApi
                 {
                     [Get("/users/{id}")]
@@ -245,6 +252,27 @@ namespace RESTween.Server.Tests
             Assert.That(generatedController, Does.Contain("private readonly global::Contracts.IUserApi _handler;"));
             Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpGet(\"/users/{id}\")]"));
             Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.FromRoute(Name = \"id\")] global::System.Int32 id"));
+            ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
+        }
+
+        [Test]
+        public void DoesNotGenerateControllerForUnmarkedRestweenInterface()
+        {
+            var source = """
+                using RESTween.Attributes;
+
+                namespace Demo;
+
+                public interface IExternalApi
+                {
+                    [Get("/external")]
+                    string GetExternal();
+                }
+                """;
+
+            var result = RunGenerator(source);
+
+            ClassicAssert.IsEmpty(result.GeneratedSources.Where(text => text.Contains("class ExternalApiController")).ToArray());
             ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
         }
 

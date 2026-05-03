@@ -12,6 +12,7 @@ namespace RESTween.Server;
 [Generator]
 public sealed class RestweenControllerGenerator : ISourceGenerator
 {
+    private const string RestweenControllerAttributeName = "RESTween.Attributes.RestweenControllerAttribute";
     private const string GetAttributeName = "RESTween.Attributes.GetAttribute";
     private const string PostAttributeName = "RESTween.Attributes.PostAttribute";
     private const string PutAttributeName = "RESTween.Attributes.PutAttribute";
@@ -114,11 +115,7 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         if (interfaceSymbol.TypeKind != TypeKind.Interface)
             return false;
 
-        return interfaceSymbol
-            .GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(method => method.MethodKind == MethodKind.Ordinary)
-            .Any(method => method.GetAttributes().Any(attribute => GetHttpMethodInfo(attribute) is not null));
+        return HasAttribute(interfaceSymbol.GetAttributes(), RestweenControllerAttributeName);
     }
 
     private static string? GenerateController(INamedTypeSymbol interfaceSymbol, GeneratorExecutionContext context)
@@ -403,6 +400,11 @@ public sealed class RestweenControllerGenerator : ISourceGenerator
         return string.IsNullOrWhiteSpace(url)
             ? string.Empty
             : $"(\"{EscapeString(url!)}\")";
+    }
+
+    private static bool HasAttribute(ImmutableArray<AttributeData> attributes, string metadataName)
+    {
+        return attributes.Any(attribute => attribute.AttributeClass?.ToDisplayString() == metadataName);
     }
 
     private static string GetControllerName(INamedTypeSymbol interfaceSymbol)

@@ -12,7 +12,7 @@ Your business logic stays in a handler class that implements the interface. The 
 ## What This Package Provides
 
 - A Roslyn source generator shipped as an analyzer.
-- `[RestweenController]` opt-in attribute generated into the consuming project.
+- `[RestweenController]` opt-in marker from `RESTween.Core`.
 - ASP.NET Core controller generation for interfaces marked with `[RestweenController]`.
 - Mapping from RESTween HTTP attributes to ASP.NET Core MVC attributes.
 - Support for standard ASP.NET Core `[HttpGet]`, `[HttpPost]`, `[HttpPut]`, and `[HttpDelete]` attributes on API interfaces.
@@ -41,7 +41,6 @@ or another setup that provides `Microsoft.AspNetCore.Mvc`.
 
 ```csharp
 using RESTween.Attributes;
-using RESTween.Server;
 
 [RestweenController]
 public interface IUserApi
@@ -64,7 +63,6 @@ You can also use standard ASP.NET Core HTTP and authorization attributes on meth
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RESTween.Attributes;
-using RESTween.Server;
 
 [RestweenController]
 public interface IAccountApi
@@ -224,13 +222,14 @@ A common layout is:
 ```text
 MyApp.Contracts
   - references RESTween.Core
-  - contains IUserApi and DTOs
+  - contains IUserApi, DTOs, and the [RestweenController] marker usage
 
 MyApp.Client
   - references RESTween
   - uses AddApiClient<IUserApi>(...)
 
 MyApp.Api
+  - references MyApp.Contracts directly
   - references RESTween.Server
   - implements UserApiHandler : IUserApi
   - registers AddScoped<IUserApi, UserApiHandler>()
