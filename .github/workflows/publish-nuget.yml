@@ -1,9 +1,12 @@
 name: Publish NuGet packages
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version, for example 1.2.3'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,7 +34,11 @@ jobs:
       - name: Resolve package version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-][0-9A-Za-z.-]+)?([+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid package version: $VERSION"
+            exit 1
+          fi
           echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Using package version $VERSION"
 

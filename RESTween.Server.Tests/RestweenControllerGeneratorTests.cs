@@ -17,7 +17,6 @@ namespace RESTween.Server.Tests
         {
             var source = """
                 using RESTween.Attributes;
-                using RESTween.Server;
                 using System.Threading.Tasks;
 
                 namespace Demo;
@@ -32,7 +31,6 @@ namespace RESTween.Server.Tests
                     public string? Name { get; set; }
                 }
 
-                [RestweenController]
                 public interface IUserApi
                 {
                     [Get("/users/{id}")]
@@ -76,7 +74,6 @@ namespace RESTween.Server.Tests
         {
             var source = """
                 using RESTween.Attributes;
-                using RESTween.Server;
 
                 namespace Demo;
 
@@ -85,7 +82,6 @@ namespace RESTween.Server.Tests
                     public string? Term { get; set; }
                 }
 
-                [RestweenController]
                 public interface ISearchApi
                 {
                     [Get("/users/{id}")]
@@ -112,7 +108,6 @@ namespace RESTween.Server.Tests
                 using Microsoft.AspNetCore.Authorization;
                 using Microsoft.AspNetCore.Mvc;
                 using RESTween.Attributes;
-                using RESTween.Server;
                 using System.Threading.Tasks;
                 using RestweenRouteAttribute = RESTween.Attributes.RouteAttribute;
 
@@ -128,7 +123,6 @@ namespace RESTween.Server.Tests
                     public string? Token { get; set; }
                 }
 
-                [RestweenController]
                 public interface IUserApi
                 {
                     [AllowAnonymous]
@@ -167,11 +161,9 @@ namespace RESTween.Server.Tests
         {
             var source = """
                 using Microsoft.AspNetCore.Mvc;
-                using RESTween.Server;
 
                 namespace Demo;
 
-                [RestweenController]
                 public interface IHealthApi
                 {
                     [HttpGet]
@@ -192,11 +184,9 @@ namespace RESTween.Server.Tests
             var source = """
                 using Microsoft.AspNetCore.Mvc;
                 using RESTween.Attributes;
-                using RESTween.Server;
 
                 namespace Demo;
 
-                [RestweenController]
                 public interface IUserApi
                 {
                     [Get("/users")]
@@ -212,14 +202,60 @@ namespace RESTween.Server.Tests
             ClassicAssert.AreEqual(DiagnosticSeverity.Error, diagnostic!.Severity);
         }
 
-        private static GeneratorRunResult RunGenerator(string source)
+        [Test]
+        public void GeneratesControllerForRestweenInterfaceFromReferencedContractsAssembly()
+        {
+            var contractsSource = """
+                using RESTween.Attributes;
+                using System.Threading.Tasks;
+
+                namespace Contracts;
+
+                public sealed class UserDto
+                {
+                    public int Id { get; set; }
+                }
+
+                public interface IUserApi
+                {
+                    [Get("/users/{id}")]
+                    Task<UserDto> GetUserAsync([Route] int id);
+                }
+                """;
+
+            var apiSource = """
+                using Contracts;
+                using System.Threading.Tasks;
+
+                namespace Api;
+
+                public sealed class UserApiHandler : IUserApi
+                {
+                    public Task<UserDto> GetUserAsync(int id)
+                    {
+                        return Task.FromResult(new UserDto { Id = id });
+                    }
+                }
+                """;
+
+            var result = RunGenerator(apiSource, CreateContractReference(contractsSource));
+            var generatedController = result.GeneratedSources.Single(text => text.Contains("class UserApiController"));
+
+            Assert.That(generatedController, Does.Contain("namespace Contracts"));
+            Assert.That(generatedController, Does.Contain("private readonly global::Contracts.IUserApi _handler;"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.HttpGet(\"/users/{id}\")]"));
+            Assert.That(generatedController, Does.Contain("[global::Microsoft.AspNetCore.Mvc.FromRoute(Name = \"id\")] global::System.Int32 id"));
+            ClassicAssert.IsEmpty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray());
+        }
+
+        private static GeneratorRunResult RunGenerator(string source, params MetadataReference[] additionalReferences)
         {
             var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
             var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
             var compilation = CSharpCompilation.Create(
                 "RESTween.Server.Generator.Tests",
                 new[] { syntaxTree },
-                GetReferences(),
+                GetReferences().Concat(additionalReferences),
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
             var generator = new RestweenControllerGenerator();
@@ -235,6 +271,28 @@ namespace RESTween.Server.Tests
             return new GeneratorRunResult(
                 generatedSources,
                 diagnostics.Concat(emitDiagnostics).ToArray());
+        }
+
+        private static MetadataReference CreateContractReference(string source)
+        {
+            var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+            var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+            var compilation = CSharpCompilation.Create(
+                "Demo.Contracts",
+                new[] { syntaxTree },
+                GetReferences(),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            using var stream = new MemoryStream();
+            var emitResult = compilation.Emit(stream);
+
+            if (!emitResult.Success)
+            {
+                var errors = string.Join(Environment.NewLine, emitResult.Diagnostics);
+                Assert.Fail("Contract compilation failed:" + Environment.NewLine + errors);
+            }
+
+            return MetadataReference.CreateFromImage(stream.ToArray());
         }
 
         private static MetadataReference[] GetReferences()
