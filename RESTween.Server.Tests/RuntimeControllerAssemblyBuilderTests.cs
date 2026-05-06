@@ -9,17 +9,17 @@ using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using RESTween.Attributes;
 using RESTween.Server;
-using RestweenRouteAttribute = RESTween.Attributes.RouteAttribute;
+using ApiRouteAttribute = RESTween.Attributes.RouteAttribute;
 
 namespace RESTween.Server.Tests;
 
 [TestFixture]
-public sealed class RestweenRuntimeControllerAssemblyBuilderTests
+public sealed class RuntimeControllerAssemblyBuilderTests
 {
     [Test]
     public void BuildAssembly_GeneratesControllerMetadataAndDelegatesToHandler()
     {
-        var assembly = RestweenRuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IUserApi) });
+        var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IUserApi) });
         var controllerType = assembly.GetTypes().Single(type => type.Name == "UserApiController");
 
         Assert.That(controllerType.Namespace, Is.EqualTo("RESTween.RuntimeGenerated"));
@@ -53,7 +53,7 @@ public sealed class RestweenRuntimeControllerAssemblyBuilderTests
     [Test]
     public void BuildAssembly_MapsBodyAndImplicitBindingRules()
     {
-        var assembly = RestweenRuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(ISearchApi) });
+        var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(ISearchApi) });
         var controllerType = assembly.GetTypes().Single(type => type.Name == "SearchApiController");
 
         var getMethod = controllerType.GetMethod(nameof(ISearchApi.GetUser))!;
@@ -72,7 +72,7 @@ public sealed class RestweenRuntimeControllerAssemblyBuilderTests
     [Test]
     public void BuildAssembly_IgnoresUnmarkedInterfaces()
     {
-        var assembly = RestweenRuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IUnmarkedApi) });
+        var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IUnmarkedApi) });
 
         Assert.That(assembly.GetTypes(), Is.Empty);
     }
@@ -81,24 +81,48 @@ public sealed class RestweenRuntimeControllerAssemblyBuilderTests
     public void BuildAssembly_ThrowsWhenMethodHasMultipleHttpAttributes()
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            RestweenRuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IAmbiguousApi) }));
+            RuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IAmbiguousApi) }));
 
         Assert.That(exception!.Message, Does.Contain("multiple HTTP method attributes"));
     }
 
     [Test]
-    public void AddRestweenRuntimeControllers_AddsDynamicAssemblyPart()
+    public void AddRuntimeController_RegistersHandlerAndControllerApi()
     {
         var services = new ServiceCollection();
-        services
-            .AddControllers()
-            .AddRestweenRuntimeControllers(options => options.AddApi<IUserApi>());
+
+        services.AddRuntimeController<IUserApi, UserApiHandler>();
+
+        Assert.That(services.Any(service =>
+            service.ServiceType == typeof(IUserApi)
+            && service.ImplementationType == typeof(UserApiHandler)
+            && service.Lifetime == ServiceLifetime.Scoped), Is.True);
+    }
+
+    [Test]
+    public void AddRuntimeControllers_AddsDynamicAssemblyPartForRegisteredApis()
+    {
+        var services = new ServiceCollection();
+        services.AddRuntimeController<IUserApi, UserApiHandler>();
+        services.AddControllers().AddRuntimeControllers();
 
         var descriptor = services.Single(service => service.ServiceType == typeof(ApplicationPartManager));
         var manager = (ApplicationPartManager)descriptor.ImplementationInstance!;
 
         Assert.That(manager.ApplicationParts.OfType<AssemblyPart>().Any(part =>
             part.Assembly.GetTypes().Any(type => type.Name == "UserApiController")), Is.True);
+    }
+
+    [Test]
+    public void AddRuntimeControllers_ThrowsWhenApiHandlerIsMissing()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddControllers().AddRuntimeControllers(options => options.AddApi<IUserApi>()));
+
+        Assert.That(exception!.Message, Does.Contain("No service is registered"));
+        Assert.That(exception.Message, Does.Contain(typeof(IUserApi).FullName));
     }
 
     public sealed class UserDto
@@ -116,7 +140,7 @@ public sealed class RestweenRuntimeControllerAssemblyBuilderTests
     {
         [Authorize(Roles = "Admin")]
         [Get("/users/{id}")]
-        Task<UserDto> GetUserAsync([RestweenRoute] int id, [Query("includeDeleted")] bool includeDeleted, [Header("x-tenant")] string tenant);
+        Task<UserDto> GetUserAsync([ApiRoute] int id, [Query("includeDeleted")] bool includeDeleted, [Header("x-tenant")] string tenant);
     }
 
     public sealed class UserApiHandler : IUserApi

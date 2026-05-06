@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using RESTween.Attributes;
-using RestweenRouteAttribute = RESTween.Attributes.RouteAttribute;
+using ApiRouteAttribute = RESTween.Attributes.RouteAttribute;
 
 namespace RESTween.Server;
 
-internal static class RestweenRuntimeControllerAssemblyBuilder
+internal static class RuntimeControllerAssemblyBuilder
 {
     private const string RuntimeNamespace = "RESTween.RuntimeGenerated";
 
@@ -20,9 +20,9 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
         if (apiInterfaces is null)
             throw new ArgumentNullException(nameof(apiInterfaces));
 
-        var assemblyName = new AssemblyName("RESTween.RuntimeControllers." + Guid.NewGuid().ToString("N"));
+        var assemblyName = new AssemblyName("RuntimeControllers." + Guid.NewGuid().ToString("N"));
         var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
-        var moduleBuilder = assemblyBuilder.DefineDynamicModule("RESTween.RuntimeControllers");
+        var moduleBuilder = assemblyBuilder.DefineDynamicModule("RuntimeControllers");
         var generatedNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var apiInterface in apiInterfaces)
@@ -54,7 +54,7 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
             throw new ArgumentNullException(nameof(apiInterface));
 
         if (!apiInterface.IsInterface)
-            throw new ArgumentException("RESTween runtime controllers can only be generated for interface types.", nameof(apiInterface));
+            throw new ArgumentException("Runtime controllers can only be generated for interface types.", nameof(apiInterface));
     }
 
     private static void DefineControllerType(
@@ -67,7 +67,7 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
         var typeName = RuntimeNamespace + "." + controllerName;
 
         if (!generatedNames.Add(typeName))
-            throw new InvalidOperationException($"A RESTween runtime controller named '{controllerName}' has already been generated. Use unique API interface names.");
+            throw new InvalidOperationException($"A runtime controller named '{controllerName}' has already been generated. Use unique API interface names.");
 
         var typeBuilder = moduleBuilder.DefineType(
             typeName,
@@ -84,7 +84,7 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
         DefineConstructor(typeBuilder, apiInterface, handlerField);
 
         foreach (var method in methods)
-            DefineActionMethod(typeBuilder, apiInterface, handlerField, method);
+            DefineActionMethod(typeBuilder, handlerField, method);
 
         typeBuilder.CreateTypeInfo();
     }
@@ -116,7 +116,6 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
 
     private static void DefineActionMethod(
         TypeBuilder typeBuilder,
-        Type apiInterface,
         FieldBuilder handlerField,
         EndpointMethod endpoint)
     {
@@ -205,10 +204,10 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
     {
         return attribute switch
         {
-            GetAttribute restween => new HttpMethodInfo(typeof(HttpGetAttribute), restween.Url, false),
-            PostAttribute restween => new HttpMethodInfo(typeof(HttpPostAttribute), restween.Url, true),
-            PutAttribute restween => new HttpMethodInfo(typeof(HttpPutAttribute), restween.Url, true),
-            DeleteAttribute restween => new HttpMethodInfo(typeof(HttpDeleteAttribute), restween.Url, false),
+            GetAttribute api => new HttpMethodInfo(typeof(HttpGetAttribute), api.Url, false),
+            PostAttribute api => new HttpMethodInfo(typeof(HttpPostAttribute), api.Url, true),
+            PutAttribute api => new HttpMethodInfo(typeof(HttpPutAttribute), api.Url, true),
+            DeleteAttribute api => new HttpMethodInfo(typeof(HttpDeleteAttribute), api.Url, false),
             HttpGetAttribute mvc => new HttpMethodInfo(typeof(HttpGetAttribute), mvc.Template, false),
             HttpPostAttribute mvc => new HttpMethodInfo(typeof(HttpPostAttribute), mvc.Template, true),
             HttpPutAttribute mvc => new HttpMethodInfo(typeof(HttpPutAttribute), mvc.Template, true),
@@ -219,16 +218,15 @@ internal static class RestweenRuntimeControllerAssemblyBuilder
 
     private static EndpointParameter CreateEndpointParameter(ParameterInfo parameter, string? url, bool isBodyMethod)
     {
-        var bindingAttribute = GetBindingAttribute(parameter, url, isBodyMethod);
         return new EndpointParameter(
             parameter.Name ?? "parameter",
             parameter.ParameterType,
-            bindingAttribute);
+            GetBindingAttribute(parameter, url, isBodyMethod));
     }
 
     private static CustomAttributeBuilder GetBindingAttribute(ParameterInfo parameter, string? url, bool isBodyMethod)
     {
-        var routeAttribute = parameter.GetCustomAttribute<RestweenRouteAttribute>();
+        var routeAttribute = parameter.GetCustomAttribute<ApiRouteAttribute>();
         if (routeAttribute is not null)
             return CreateNamedBindingAttribute(typeof(FromRouteAttribute), routeAttribute.Name ?? parameter.Name!);
 

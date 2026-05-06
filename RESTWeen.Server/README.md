@@ -1,25 +1,24 @@
 # RESTween.Server
 
-RESTween.Server is a source-generator package that creates thin ASP.NET Core controllers from RESTween API interfaces.
+RESTween.Server creates thin ASP.NET Core MVC controllers at runtime from RESTween API interfaces.
 
-It is built for applications that want one shared REST contract interface and two generated adapters:
+It is built for applications that want one shared REST contract interface and two adapters:
 
 - `RESTween` on the client side builds HTTP requests from the interface.
-- `RESTween.Server` on the server side generates ASP.NET Core controllers from the same interface.
+- `RESTween.Server` on the server side exposes ASP.NET Core controller endpoints from the same interface.
 
-Your business logic stays in a handler class that implements the interface. The generated controller only translates ASP.NET Core HTTP calls into handler method calls.
+The generated controller is created in memory with `Reflection.Emit` during service registration. Your business logic stays in a handler class that implements the interface.
 
 ## What This Package Provides
 
-- A Roslyn source generator shipped as an analyzer.
+- Runtime ASP.NET Core controller generation with `Reflection.Emit`.
 - `[RestweenController]` opt-in marker from `RESTween.Core`.
-- ASP.NET Core controller generation for interfaces marked with `[RestweenController]`.
+- A single registration method for handler DI and endpoint generation.
 - Mapping from RESTween HTTP attributes to ASP.NET Core MVC attributes.
-- Support for standard ASP.NET Core `[HttpGet]`, `[HttpPost]`, `[HttpPut]`, and `[HttpDelete]` attributes on API interfaces.
-- Passthrough for standard `[AllowAnonymous]` and `[Authorize]` on API methods.
+- Support for standard ASP.NET Core `[HttpGet]`, `[HttpPost]`, `[HttpPut]`, and `[HttpDelete]` attributes on API interface methods.
+- Passthrough for standard method-level `[AllowAnonymous]` and `[Authorize]`.
 - Parameter binding generation for route, query, body, and header values.
-- Handler-first server design: generated controllers inject the API interface and call the registered implementation.
-- A dependency on `RESTween.Core`, so shared RESTween attributes are available.
+- Startup validation for missing API handler registrations.
 
 ## Install
 
@@ -27,15 +26,13 @@ Your business logic stays in a handler class that implements the interface. The 
 dotnet add package RESTween.Server
 ```
 
-The package contains the generator under `analyzers/dotnet/cs`, so it runs at compile time in the consuming project.
-
-The consuming ASP.NET Core project must reference ASP.NET Core MVC, usually through:
+The consuming ASP.NET Core project must provide ASP.NET Core MVC, usually through:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
 ```
 
-or another setup that provides `Microsoft.AspNetCore.Mvc`.
+RESTween.Server currently targets `net8.0`.
 
 ## Define a Shared Interface
 
@@ -53,7 +50,7 @@ public interface IUserApi
 }
 ```
 
-Only interfaces marked with `[RestweenController]` are used by the generator.
+Only interfaces marked with `[RestweenController]` are used for runtime controller generation.
 
 Methods without a RESTween HTTP attribute or ASP.NET Core HTTP attribute are ignored.
 
@@ -100,22 +97,46 @@ public sealed class UserApiHandler : IUserApi
 }
 ```
 
-Register the handler in DI:
+## Register Runtime Controllers
+
+Recommended registration:
 
 ```csharp
-builder.Services.AddScoped<IUserApi, UserApiHandler>();
-builder.Services.AddControllers();
-```
+using RESTween.Server;
 
-Map controllers:
+builder.Services.AddRuntimeController<IUserApi, UserApiHandler>();
 
-```csharp
+builder.Services
+    .AddControllers()
+    .AddRuntimeControllers();
+
+var app = builder.Build();
+
 app.MapControllers();
 ```
 
+`AddRuntimeController<TApi, THandler>()` registers `TApi -> THandler` as a scoped service and adds `TApi` to the runtime controller registry.
+
+`AddRuntimeControllers()` builds the dynamic controller assembly and adds it to MVC through `ApplicationPartManager`.
+
+If you already register handlers manually, you can use the explicit API form:
+
+```csharp
+builder.Services.AddScoped<IUserApi, UserApiHandler>();
+
+builder.Services
+    .AddControllers()
+    .AddRuntimeControllers(options =>
+    {
+        options.AddApi<IUserApi>();
+    });
+```
+
+If an API interface is added but no handler is registered in DI, RESTween.Server throws during service setup with a clear error message.
+
 ## What Gets Generated
 
-For the interface above, RESTween.Server generates a controller similar to:
+For the interface above, RESTween.Server creates a runtime controller equivalent to:
 
 ```csharp
 [ApiController]
@@ -137,6 +158,8 @@ public sealed class UserApiController : ControllerBase
         => _handler.CreateUserAsync(dto);
 }
 ```
+
+The type is not written to disk. It is emitted into an in-memory assembly before `builder.Build()`, then MVC discovers it like a normal controller.
 
 The generated controller is intentionally thin. It should not contain business rules, persistence logic, validation policy, or mapping logic. Put that in the handler or your application layer.
 
@@ -160,7 +183,7 @@ Standard ASP.NET Core HTTP method attributes are accepted too:
 [HttpDelete("/path")] -> [HttpDelete("/path")]
 ```
 
-Use only one HTTP method attribute per method. If a method has both RESTween and ASP.NET Core HTTP method attributes, the generator reports `RESTWEEN001`.
+Use only one HTTP method attribute per method. If a method has both RESTween and ASP.NET Core HTTP method attributes, runtime generation throws a clear startup exception.
 
 Authorization attributes are copied to the generated action:
 
@@ -169,7 +192,7 @@ Authorization attributes are copied to the generated action:
 [Authorize]      -> [Authorize]
 ```
 
-`[Authorize]` constructor policy and named values such as `Roles`, `Policy`, and `AuthenticationSchemes` are preserved.
+`[Authorize]` constructor policy and named values such as `Roles` and `AuthenticationSchemes` are preserved.
 
 Parameter attributes are converted to MVC binding attributes:
 
@@ -195,7 +218,7 @@ Generated parameter:
 
 ## Implicit Binding Rules
 
-If a parameter does not have an explicit RESTween binding attribute, the generator chooses a binding using these rules:
+If a parameter does not have an explicit RESTween binding attribute, runtime generation chooses a binding using these rules:
 
 - If the parameter name appears in the URL template as `{name}`, it becomes `[FromRoute(Name = "name")]`.
 - If the parameter is a simple type, enum, string, `Guid`, `DateTime`, or nullable simple type, it becomes `[FromQuery(Name = "name")]`.
@@ -213,7 +236,7 @@ IUserApi -> UserApiController
 IOrders  -> OrdersController
 ```
 
-The generated controller is emitted into the same namespace as the interface.
+Generated controllers are emitted into the `RESTween.RuntimeGenerated` namespace.
 
 ## Recommended Project Layout
 
@@ -232,21 +255,20 @@ MyApp.Api
   - references MyApp.Contracts directly
   - references RESTween.Server
   - implements UserApiHandler : IUserApi
-  - registers AddScoped<IUserApi, UserApiHandler>()
+  - registers AddRuntimeController<IUserApi, UserApiHandler>()
 ```
 
 This gives you one shared contract and avoids duplicating endpoint strings between client and server.
 
 ## Limitations
 
-The current generator focuses on controller generation for MVP server support:
-
 - It generates ASP.NET Core MVC controllers, not Minimal APIs.
 - It only processes interfaces marked with `[RestweenController]`.
 - It only generates endpoints for methods with one RESTween or ASP.NET Core HTTP method attribute.
-- It expects the consuming project to provide ASP.NET Core MVC references.
+- APIs must be known during service registration, before `builder.Build()`.
 - It passes through ASP.NET Core authorization attributes but does not implement authorization policies by itself.
 - It does not implement business logic, validation, filters, or custom response wrapping.
+- Runtime code generation with `Reflection.Emit` is not intended for NativeAOT scenarios.
 
 Use normal ASP.NET Core features around the generated controllers for authorization, filters, middleware, OpenAPI, validation, and exception handling.
 
