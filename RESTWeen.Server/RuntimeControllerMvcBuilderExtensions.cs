@@ -8,12 +8,12 @@ namespace RESTween.Server;
 
 public static class RuntimeControllerMvcBuilderExtensions
 {
-    public static IMvcBuilder AddRuntimeControllers(this IMvcBuilder mvcBuilder)
+    internal static IMvcBuilder AddRuntimeControllers(this IMvcBuilder mvcBuilder)
     {
         return AddRuntimeControllers(mvcBuilder, configure: null);
     }
 
-    public static IMvcBuilder AddRuntimeControllers(
+    internal static IMvcBuilder AddRuntimeControllers(
         this IMvcBuilder mvcBuilder,
         Action<RuntimeControllerOptions>? configure)
     {
