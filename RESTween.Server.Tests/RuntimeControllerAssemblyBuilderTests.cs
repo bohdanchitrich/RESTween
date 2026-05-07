@@ -114,6 +114,25 @@ public sealed class RuntimeControllerAssemblyBuilderTests
     }
 
     [Test]
+    public void AddRestweenController_RegistersHandlerAndDynamicAssemblyPart()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRestweenController<IUserApi, UserApiHandler>();
+
+        Assert.That(services.Any(service =>
+            service.ServiceType == typeof(IUserApi)
+            && service.ImplementationType == typeof(UserApiHandler)
+            && service.Lifetime == ServiceLifetime.Scoped), Is.True);
+
+        var descriptor = services.Single(service => service.ServiceType == typeof(ApplicationPartManager));
+        var manager = (ApplicationPartManager)descriptor.ImplementationInstance!;
+
+        Assert.That(manager.ApplicationParts.OfType<AssemblyPart>().Any(part =>
+            part.Assembly.GetTypes().Any(type => type.Name == "UserApiController")), Is.True);
+    }
+
+    [Test]
     public void AddRuntimeControllers_ThrowsWhenApiHandlerIsMissing()
     {
         var services = new ServiceCollection();
