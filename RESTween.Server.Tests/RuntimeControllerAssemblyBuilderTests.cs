@@ -133,6 +133,26 @@ public sealed class RuntimeControllerAssemblyBuilderTests
     }
 
     [Test]
+    public void AddRestweenController_CanBeCalledForMultipleApisWithoutDuplicatingEndpoints()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRestweenController<IUserApi, UserApiHandler>();
+        services.AddRestweenController<ISearchApi, SearchApiHandler>();
+
+        var descriptor = services.Single(service => service.ServiceType == typeof(ApplicationPartManager));
+        var manager = (ApplicationPartManager)descriptor.ImplementationInstance!;
+        var generatedControllerNames = manager.ApplicationParts
+            .OfType<AssemblyPart>()
+            .SelectMany(part => part.Assembly.GetTypes())
+            .Select(type => type.Name)
+            .ToArray();
+
+        Assert.That(generatedControllerNames.Count(name => name == "UserApiController"), Is.EqualTo(1));
+        Assert.That(generatedControllerNames.Count(name => name == "SearchApiController"), Is.EqualTo(1));
+    }
+
+    [Test]
     public void AddRuntimeControllers_ThrowsWhenApiHandlerIsMissing()
     {
         var services = new ServiceCollection();
@@ -183,6 +203,19 @@ public sealed class RuntimeControllerAssemblyBuilderTests
 
         [Post("/search")]
         string Search(SearchFilter filter);
+    }
+
+    public sealed class SearchApiHandler : ISearchApi
+    {
+        public string GetUser(int id, string culture)
+        {
+            return $"{id}:{culture}";
+        }
+
+        public string Search(SearchFilter filter)
+        {
+            return filter.Term ?? string.Empty;
+        }
     }
 
     public interface IUnmarkedApi

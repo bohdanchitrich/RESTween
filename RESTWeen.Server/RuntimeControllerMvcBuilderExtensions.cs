@@ -26,13 +26,20 @@ public static class RuntimeControllerMvcBuilderExtensions
 
         configure?.Invoke(options);
 
-        ValidateHandlers(mvcBuilder.Services, options.ApiInterfaces);
+        var apiInterfaces = GetNewApis(mvcBuilder.Services, options.ApiInterfaces).ToArray();
+        if (apiInterfaces.Length == 0)
+            return mvcBuilder;
 
-        var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(options.ApiInterfaces);
+        ValidateHandlers(mvcBuilder.Services, apiInterfaces);
+
+        var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(apiInterfaces);
         mvcBuilder.ConfigureApplicationPartManager(manager =>
         {
             manager.ApplicationParts.Add(new AssemblyPart(assembly));
         });
+
+        foreach (var apiInterface in apiInterfaces)
+            mvcBuilder.Services.AddSingleton(new RuntimeControllerGeneratedApi(apiInterface));
 
         return mvcBuilder;
     }
@@ -44,6 +51,18 @@ public static class RuntimeControllerMvcBuilderExtensions
             .Select(service => service.ImplementationInstance)
             .OfType<RuntimeControllerApi>()
             .Select(registration => registration.ApiInterface);
+    }
+
+    private static IEnumerable<Type> GetNewApis(IServiceCollection services, IReadOnlyList<Type> apiInterfaces)
+    {
+        var generatedApis = services
+            .Where(service => service.ServiceType == typeof(RuntimeControllerGeneratedApi))
+            .Select(service => service.ImplementationInstance)
+            .OfType<RuntimeControllerGeneratedApi>()
+            .Select(registration => registration.ApiInterface)
+            .ToHashSet();
+
+        return apiInterfaces.Where(apiInterface => !generatedApis.Contains(apiInterface));
     }
 
     private static void ValidateHandlers(IServiceCollection services, IReadOnlyList<Type> apiInterfaces)

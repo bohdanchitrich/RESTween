@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>RESTween.Core</PackageId>
-    <Version>1.7.9</Version>
+    <Version>1.7.10</Version>
     <Authors>Bohdan Khitrikh</Authors>
     <Product>Library</Product>
     <Description>Shared RESTween contracts and attributes used by RESTween client and server packages.</Description>

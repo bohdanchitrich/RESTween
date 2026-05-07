@@ -8,7 +8,7 @@
     <NoPackageAnalysis>true</NoPackageAnalysis>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>RESTween.Server</PackageId>
-    <Version>1.7.9</Version>
+    <Version>1.7.10</Version>
     <Authors>Bohdan Khitrikh</Authors>
     <Product>Library</Product>
     <Description>Runtime ASP.NET Core controller generation for RESTween API interfaces using Reflection.Emit.</Description>
