@@ -1,6 +1,9 @@
 name: Publish NuGet packages
 
 on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
@@ -35,6 +38,8 @@ jobs:
             "RESTWeen.Server/RESTween.Server.csproj"
           )
 
+          expected_version=""
+
           for project in "${projects[@]}"; do
             package_id="$(dotnet msbuild "$project" -getProperty:PackageId)"
             version="$(dotnet msbuild "$project" -getProperty:PackageVersion)"
@@ -48,8 +53,38 @@ jobs:
               exit 1
             fi
 
+            if [[ -z "$expected_version" ]]; then
+              expected_version="$version"
+            elif [[ "$version" != "$expected_version" ]]; then
+              echo "Package versions must match. Expected $expected_version, but $project has $version."
+              exit 1
+            fi
+
             echo "$package_id $version"
+
+            package_id_lower="$(echo "$package_id" | tr '[:upper:]' '[:lower:]')"
+            version_lower="$(echo "$version" | tr '[:upper:]' '[:lower:]')"
+            index_url="https://api.nuget.org/v3-flatcontainer/$package_id_lower/index.json"
+            response_file="$(mktemp)"
+            http_code="$(curl --silent --show-error --location --output "$response_file" --write-out "%{http_code}" "$index_url")"
+
+            if [[ "$http_code" == "200" ]]; then
+              if grep -F "\"$version_lower\"" "$response_file" > /dev/null; then
+                echo "$package_id $version is already published on NuGet."
+                exit 1
+              fi
+            elif [[ "$http_code" == "404" ]]; then
+              echo "$package_id has no published versions yet."
+            else
+              echo "Failed to check $package_id on NuGet. HTTP status: $http_code"
+              cat "$response_file"
+              exit 1
+            fi
+
+            rm "$response_file"
           done
+
+          echo "All packages use version $expected_version and it is not published yet."
 
       - name: Restore
         shell: bash
