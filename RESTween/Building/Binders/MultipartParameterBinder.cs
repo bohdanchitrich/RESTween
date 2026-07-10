@@ -27,13 +27,13 @@ namespace RESTween.Building
 
             if (context.Value is Stream stream)
             {
-                multipart.Add(new StreamContent(stream), name, "file");
+                multipart.Add(new StreamContent(stream), name, ResolveFileName(context));
                 return true;
             }
 
             if (context.Value is byte[] bytes)
             {
-                multipart.Add(new ByteArrayContent(bytes), name, "file");
+                multipart.Add(new ByteArrayContent(bytes), name, ResolveFileName(context));
                 return true;
             }
 
@@ -51,6 +51,23 @@ namespace RESTween.Building
 
             multipart.Add(_serializer.SerializeMultipartJsonContent(context.Value), name);
             return true;
+        }
+
+        /// <summary>
+        /// The multipart Content-Disposition filename for a Stream/byte[] part. A raw Stream carries
+        /// no name of its own, so we look for a sibling "fileName" string parameter (the convention
+        /// used across every Stream-upload method) and fall back to "file" if none was supplied.
+        /// </summary>
+        private static string ResolveFileName(RestweenParameterContext context)
+        {
+            if (context.TryGetSiblingValue("fileName", out var value) &&
+                value is string fileName &&
+                !string.IsNullOrWhiteSpace(fileName))
+            {
+                return fileName;
+            }
+
+            return "file";
         }
     }
 }

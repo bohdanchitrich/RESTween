@@ -70,11 +70,12 @@ public sealed class RuntimeControllerAssemblyBuilderTests
     }
 
     [Test]
-    public void BuildAssembly_IgnoresUnmarkedInterfaces()
+    public void BuildAssembly_GeneratesControllersForInterfacesWithoutRestweenControllerAttribute()
     {
         var assembly = RuntimeControllerAssemblyBuilder.BuildAssembly(new[] { typeof(IUnmarkedApi) });
+        var controllerType = assembly.GetTypes().Single(type => type.Name == "UnmarkedApiController");
 
-        Assert.That(assembly.GetTypes(), Is.Empty);
+        Assert.That(controllerType.GetMethod(nameof(IUnmarkedApi.Get))!.GetCustomAttribute<HttpGetAttribute>()!.Template, Is.EqualTo("/unmarked"));
     }
 
     [Test]
@@ -174,7 +175,6 @@ public sealed class RuntimeControllerAssemblyBuilderTests
         public string? Term { get; set; }
     }
 
-    [RestweenController]
     public interface IUserApi
     {
         [Authorize(Roles = "Admin")]
@@ -195,7 +195,6 @@ public sealed class RuntimeControllerAssemblyBuilderTests
         }
     }
 
-    [RestweenController]
     public interface ISearchApi
     {
         [HttpGet("/users/{id}")]

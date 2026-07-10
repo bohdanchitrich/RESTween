@@ -50,7 +50,7 @@ namespace RESTween.Building
 
             for (var i = 0; i < parameters.Length; i++)
             {
-                var context = new RestweenParameterContext(parameterInfos[i], parameters[i], metadata, state, i);
+                var context = new RestweenParameterContext(parameterInfos[i], parameters[i], metadata, state, i, parameterInfos, parameters);
                 var handled = false;
 
                 foreach (var binder in _binders)

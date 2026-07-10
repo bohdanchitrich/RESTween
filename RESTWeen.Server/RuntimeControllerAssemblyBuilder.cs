@@ -29,9 +29,6 @@ internal static class RuntimeControllerAssemblyBuilder
         {
             ValidateApiInterface(apiInterface);
 
-            if (!apiInterface.IsDefined(typeof(RestweenControllerAttribute), inherit: false))
-                continue;
-
             var methods = apiInterface
                 .GetMethods()
                 .Select(CreateEndpointMethod)
@@ -75,6 +72,8 @@ internal static class RuntimeControllerAssemblyBuilder
             typeof(ControllerBase));
 
         typeBuilder.SetCustomAttribute(CreateParameterlessAttribute(typeof(ApiControllerAttribute)));
+        foreach (var attribute in GetPassthroughAttributes(apiInterface))
+            typeBuilder.SetCustomAttribute(attribute);
 
         var handlerField = typeBuilder.DefineField(
             "_handler",
@@ -253,14 +252,14 @@ internal static class RuntimeControllerAssemblyBuilder
         return CreateNamedBindingAttribute(typeof(FromQueryAttribute), parameter.Name!);
     }
 
-    private static IReadOnlyList<CustomAttributeBuilder> GetPassthroughAttributes(MethodInfo method)
+    private static IReadOnlyList<CustomAttributeBuilder> GetPassthroughAttributes(MemberInfo member)
     {
         var attributes = new List<CustomAttributeBuilder>();
 
-        if (method.IsDefined(typeof(AllowAnonymousAttribute), inherit: false))
+        if (member.IsDefined(typeof(AllowAnonymousAttribute), inherit: false))
             attributes.Add(CreateParameterlessAttribute(typeof(AllowAnonymousAttribute)));
 
-        foreach (var authorize in method.GetCustomAttributes<AuthorizeAttribute>(inherit: false))
+        foreach (var authorize in member.GetCustomAttributes<AuthorizeAttribute>(inherit: false))
             attributes.Add(CreateAuthorizeAttribute(authorize));
 
         return attributes;
